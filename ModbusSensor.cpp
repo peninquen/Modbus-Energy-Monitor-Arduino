@@ -26,3 +26,9 @@
 
 
 #include "ModbusSensor.h"
+
+
+float num;
+unsigned long temp = (unsigned long)regs[0] << 16 | regs[1];
+num = *(float*)&temp;
+
