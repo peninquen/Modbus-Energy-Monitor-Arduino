@@ -1,39 +1,4 @@
 /**********************************************************************
-* ModbusEnergyMonitor example
-* An example to collect data from a Modbus energy monitor using ModbusSensor class
-* to datalogger, include a RTC DS3231 and a SD card
-* version 0.3 ALPHA 21/09/2015
-* 
-* Author: Jaime García  @peninquen
-* License: Apache License Version 2.0.
-*
-**********************************************************************/
-/*
-PULSE ELECTRICAL ENERGY MONITOR
-DDS238-1 SINGLE-PHASE DIN-RAIL TYPE WATT-HOUR METER
-TECHNICAL DETAILS
-STANDARD IEC 62053-21 (IEC61036)
-Nominal voltage: 120/220/230/240 V +-10%
-Basic current (It): 5 A
-Maximun current (Ib1) 32 A
-Minimun current: 0.02 A
-Frequency: 50/60 Hz
-Consumption: <2w / 10 VA
-Accurancy class: 1
-Display: Mechanical 5+1 digits
-         LCD 5+1 / 6+1 digits
-Interface: Open colector output (SO)  SO+ ---------------------- PIN 2 (INT0) INTERNAL PULLUP RESISTOR
-           18-27V 27mA                SO- ---------------------- GND
-Impulse length: >= 30ms
-units conversion:
-Energy: 3200 imp = 1 KWh -> 1 imp = 0,3125 Wh;
-Power: 1 imps/s = 1125 W;
-Current(voltage 230V)-> 1 imp/s = 4.89 A;
-maximum impulse frequency (30 A): 6.13 imp/s -> period 163 ms
-basic frequency (5 A): 1.02 imp/s -> period 978.3 ms
-minimun impulse frequency (0.02 A): 1.0 imp/min-> period 60000 ms
-Mounting: DIN rail 18 mm (1 module)
-include flasing led proportional to load (1000 imp/KWh)
 */
 #define SERIAL_OUTPUT 1
 
@@ -47,15 +12,22 @@ include flasing led proportional to load (1000 imp/KWh)
 #   define SERIAL_PRINTLN(...)
 #endif
 
-#include "ModbusSensor.h"
+#include "ModbusSDM120C.h"
 
-#define SERIAL_PORT 0 // Arduino only one serial port, Mega has 3 serial ports.
-#define ID_SLAVE 1
-#define REFRESH_INTERVAL  5000      // refresh time, 5 SECONDS
+#define MODBUS_SERIAL_PORT &Serial1 // Arduino has only one serial port, Mega has 3 serial ports.
+// if use Serial 0, remember disconect Tx (pin0) when upload sketch, then re-conect
+#define ID_SDM120C      // modbus id of the energy monitor
+#define REFRESH_INTERVAL  5000      // refresh time, 5 SECONDS, equivalent to poll time
 #define WRITE_INTERVAL 300000UL  // values send to serial port, 15 minutes (5 * 60 * 1000)
 #define KWH_2_WS 36000000 
-ModbusSensor wattmeter; // instance to collect data
+ModbusSDM120C wattmeter; // instance to collect data
 //variables to process and send values
+float voltage;
+float maxVoltage;
+float minVoltage;
+float current;
+float maxCurrent;
+float minCurrent;
 float power;
 float maxPower;
 float minPower;
