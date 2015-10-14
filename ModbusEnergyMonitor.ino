@@ -1,4 +1,15 @@
 /**********************************************************************
+* ModbusEnergyMonitor example
+* An example to collect data from a Modbus energy monitor using ModbusSensor class
+* to datalogger, include a RTC DS3231 and a SD card
+* version 0.3 ALPHA 21/09/2015
+* 
+* Author: Jaime García  @peninquen
+* License: Apache License Version 2.0.
+*
+**********************************************************************/
+/*
+
 */
 #define SERIAL_OUTPUT 1
 
@@ -13,6 +24,7 @@
 #endif
 
 #include "ModbusSDM120C.h"
+#define TxEnablePin 2
 
 #define MODBUS_SERIAL_PORT &Serial1 // Arduino has only one serial port, Mega has 3 serial ports.
 // if use Serial 0, remember disconect Tx (pin0) when upload sketch, then re-conect
