@@ -1,0 +1,225 @@
+/*  SDM120C Modbus RTU Protocol con Arduino.
+*  version 0.0.1 by @peninquen
+*  based on version 0.0.4  by @cosmopaco. 
+*
+*  Sketch para modificar los parametros de comunicación del dispositivo:
+*  Poner el SMD120 en modo -SET- pulsando durante 3 segundos en el pulsador.
+*  Introducir los nuevos datos por el terminal serial
+*  En caso de introducir un valor no válido, no realiza la acción
+*  Algunos parametros requieren reiniciar el SMD120 para tener efecto
+*  Materiales 
+*    Arduino Mega
+*    Modulo RS485 
+*    Conexiones (Configuracion por defecto) Puerto serial 1
+*    Arduino pin   Modulo RS485 pin
+*    19            RO (receive out) 
+*    18            DI (data in)
+*    17            DE/RE (data enable/receive enable).
+*    
+*  
+*/
+#include <SimpleModbusMasterSDM120.h>
+
+// Direcciones registros de datos solo lectura. Valores tipo float.
+// Utilizar funcion 04 lectura, numero de bytes 4.
+
+// Estos datos fueron sacados de otro manual, posiblemente una version anterior del SDM120.
+//  #define VOL_ADR 0X0000    // Voltaje
+//  #define CUR_ADR 0X0006    // Corriente
+//  #define POW_ADR 0X000C    // Potencia 
+//  #define VAM_ADR 0X0012    // VoltiAmperios.
+//  #define PFA_ADR 0X001E    // Factor de potencia.
+//  #define FRE_ADR 0X0046    // Frecuencia.
+//  #define ENE_ADR 0X0201    // Energia consumida KWH
+//  #define POE_ADR 0XF101    // Energia instantanea consumida.
+//  #define NEE_ADR 0XF201    // Energia instantanea generada.
+//
+
+
+
+ #define VOL_ADR 0X0000    // VOLTAJE.
+ #define CUR_ADR 0X0006    // CORRIENTE.
+ #define POW_ADR 0X000C    // POTENCIA ACTIVA. 
+ #define VAM_ADR 0X0012    // Potencia Aparente.
+ #define PRE_ADR 0X0018    // Potencia Reactiva.
+ #define PFA_ADR 0X001E    // Factor de potencia.
+ #define FRE_ADR 0X0046    // Frecuencia.
+ #define ENE_ADR 0X0048    // ENERGIA IMPORTADA KWH
+ #define POE_ADR 0X004A    // Energia exportada.
+ #define NEE_ADR 0X0156    // Energia activa Total.
+//
+
+
+
+/*
+Constants are provided for:
+  Function 1  - READ_COIL_STATUS
+  Function 2  - READ_INPUT_STATUS
+  Function 3  - READ_HOLDING_REGISTERS 
+  Function 4  - READ_INPUT_REGISTERS
+  Function 15 - FORCE_MULTIPLE_COILS
+  Function 16 - PRESET_MULTIPLE_REGISTERS 
+
+   Valid modbus byte formats are:
+    SERIAL_8N2: 1 start bit, 8 data bits, 2 stop bits
+    SERIAL_8E1: 1 start bit, 8 data bits, 1 Even parity bit, 1 stop bit
+    SERIAL_8O1: 1 start bit, 8 data bits, 1 Odd parity bit, 1 stop bit
+*/
+// Estos parametros son un poco confusos dependiendo del manual la opción por defecto puede cambiar.
+// Verificar que realmente tiene estos parametros.
+ #define SDM120C_METER_NUMBER   1
+ #define SDM120C_BAUDRATE       2400
+ #define SDM120C_BYTEFORMAT     SERIAL_8N2    //Prty n
+// 
+
+
+
+
+
+ #define TIMEOUT 1000
+ #define POLLING 5000    // the scan rate 
+ #define RETRYCOUNT 10   // numero de reintentos, para volver set the "connection" variable to true.
+ #define TXENPIN  17     // Pin cambio recibir/trasmiste para el driver RS485
+
+
+
+// Direcciones registros de configuración lectura/escritura  Valores tipo HEX.
+// Utilizar funcion 10 escritura, 04 lectura numeor de bytes 1.
+
+// IMPLEMENTAR.
+
+
+// This is the easiest way to create new packets
+// Add as many as you want. TOTAL_NO_OF_PACKETS
+// is automatically updated.
+enum
+{
+ PACKET1,
+ PACKET2,
+ PACKET3,
+ PACKET4,
+ TOTAL_NO_OF_PACKETS // leave this last entry
+};
+
+// Create an array of Packets to be configured
+Packet packets[TOTAL_NO_OF_PACKETS];
+
+// Create a packetPointer to access each packet
+// individually. This is not required you can access
+// the array explicitly. E.g. packets[PACKET1].id = 2;
+// This does become tedious though...
+packetPointer volPacket = &packets[PACKET1];
+packetPointer volPacket_2 = &packets[PACKET2];
+packetPointer curPacket = &packets[PACKET3];
+packetPointer curPacket_2 = &packets[PACKET4];
+ 
+ unsigned int arrVoltage[2]; 
+ unsigned int arrCurrent[2]; 
+ 
+// Union 
+union datas{
+ byte  b[4];
+ float f;
+ unsigned int Array[2]; 
+}voltage_2, current_2;
+
+union unPower{
+ unsigned int Array[2];
+ float F;
+}power;
+
+union unEnergy{
+ unsigned int Array[2];
+ float F;
+}energy;
+
+void setup() {
+
+ // modbus_construct(packet, id, function, address, data, register array)    
+ // For functions 1 & 2 data is the number of points
+ // For functions 3, 4 & 16 data is the number of registers
+ // For function 15 data is the number of coils
+ modbus_construct(volPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, VOL_ADR, 2, arrVoltage);
+ modbus_construct_SDM120 (volPacket_2, SDM120C_METER_NUMBER, VOL_ADR, voltage_2.Array);
+ modbus_construct(curPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, CUR_ADR, 2, arrCurrent);
+ modbus_construct_SDM120(curPacket_2, SDM120C_METER_NUMBER, CUR_ADR, current_2.Array);
+ 
+ /* Initialize communication settings:
+    parameters(HardwareSerial* SerialPort,
+   long baud, 
+   unsigned char byteFormat,
+   unsigned int timeout, 
+   unsigned int polling, 
+   unsigned char retry_count, 
+   unsigned char TxEnablePin,
+   Packet* packets, 
+   unsigned int total_no_of_packets);
+
+    Valid modbus byte formats are:
+    SERIAL_8N2: 1 start bit, 8 data bits, 2 stop bits
+    SERIAL_8E1: 1 start bit, 8 data bits, 1 Even parity bit, 1 stop bit
+    SERIAL_8O1: 1 start bit, 8 data bits, 1 Odd parity bit, 1 stop bit
+    
+    You can obviously use SERIAL_8N1 but this does not adhere to the
+    Modbus specifications. That said, I have tested the SERIAL_8N1 option 
+    on various commercial masters and slaves that were suppose to adhere
+    to this specification and was always able to communicate... Go figure.
+    
+    These are already defined in the Arduino global name space. 
+ */ 
+ // Iniciamos comunicación modbus SERIAL1 Arduino Mega.
+ modbus_configure(&Serial1, SDM120C_BAUDRATE, SDM120C_BYTEFORMAT, TIMEOUT, POLLING, RETRYCOUNT, TXENPIN, packets, TOTAL_NO_OF_PACKETS);
+ 
+ //Iniciamos puerto serial"0" Arduino Mega para visualizar datos.
+ Serial.begin(9600);
+ Serial.println(F("Test SDM120-Modbus"));
+ pinMode(13, OUTPUT);  // Led pin de Arduino Mega;
+ digitalWrite(13, LOW);
+}
+
+void loop() {
+ static boolean b = false ;
+ static unsigned long oldMillis;  
+ modbus_update();
+ if( (millis()-oldMillis) > POLLING){
+   unsigned long temp;
+   float v;
+   digitalWrite(13,b);
+   b++;    
+   oldMillis=millis();  
+   
+   temp = (unsigned long)arrVoltage[0] << 16 | arrVoltage[1];
+   v = *(float*)&temp;
+   Serial.print(F(" Voltaje Modo 1="));
+   Serial.println(v, 1);
+
+   Serial.print(F(" Voltaje Modo 2="));
+   Serial.println(voltage_2.f, 1);
+   
+   temp = (unsigned long)arrCurrent[0] << 16 | arrCurrent[1];
+   v = *(float*)&temp;   
+   Serial.print(F(" Corriente="));
+   Serial.println(v, 1);
+   
+   v= (float)current_2.f;
+   Serial.print(F(" Corriente_2="));
+   Serial.println(v, 1);
+   
+   Serial.print(F("Voltaje array="));
+   Serial.print(arrVoltage[0],HEX);
+   Serial.println(arrVoltage[1],HEX);   
+
+   Serial.print(F("Voltaje_2 array="));
+   Serial.print(voltage_2.Array[0],HEX);
+   Serial.println(voltage_2.Array[1],HEX);
+ 
+   
+   Serial.print(F("Current array="));
+   Serial.print(arrCurrent[0],HEX);
+   Serial.println(arrCurrent[1],HEX);
+
+   Serial.print(F("Current_2 array="));
+   Serial.print(current_2.Array[0],HEX);
+   Serial.println(current_2.Array[1],HEX);   
+ } 
+}
