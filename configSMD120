@@ -83,31 +83,17 @@ packetPointer parameterPacket = &packets[PACKET1];
 // Union 
 union datas{
  byte  b[4];
- float f;
+ float F;
  unsigned int Array[2]; 
-}parameter, current_2;
+}parameter;
 
-union unPower{
- unsigned int Array[2];
- float F;
-}power;
 
-union unEnergy{
- unsigned int Array[2];
- float F;
-}energy;
 
 void setup() {
+ //Iniciamos puerto serial"0" Arduino Mega para entrada/salida de datos.
+ Serial.begin(9600);
+ Serial.println(F("Config SDM120-Modbus"));
 
- // modbus_construct(packet, id, function, address, data, register array)    
- // For functions 1 & 2 data is the number of points
- // For functions 3, 4 & 16 data is the number of registers
- // For function 15 data is the number of coils
- modbus_construct(volPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, VOL_ADR, 2, arrVoltage);
- modbus_construct_SDM120 (volPacket_2, SDM120C_METER_NUMBER, VOL_ADR, voltage_2.Array);
- modbus_construct(curPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, CUR_ADR, 2, arrCurrent);
- modbus_construct_SDM120(curPacket_2, SDM120C_METER_NUMBER, CUR_ADR, current_2.Array);
- 
  /* Initialize communication settings:
     parameters(HardwareSerial* SerialPort,
    long baud, 
@@ -133,12 +119,19 @@ void setup() {
  */ 
  // Iniciamos comunicación modbus SERIAL1 Arduino Mega.
  modbus_configure(&Serial1, SDM120C_BAUDRATE, SDM120C_BYTEFORMAT, TIMEOUT, POLLING, RETRYCOUNT, TXENPIN, packets, TOTAL_NO_OF_PACKETS);
+ //Lee el valor de registro id
+ modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, ID_ADR, parameter.Array);
  
- //Iniciamos puerto serial"0" Arduino Mega para visualizar datos.
- Serial.begin(9600);
- Serial.println(F("Test SDM120-Modbus"));
- pinMode(13, OUTPUT);  // Led pin de Arduino Mega;
- digitalWrite(13, LOW);
+ // modbus_construct(packet, id, function, address, data, register array)    
+ // For functions 1 & 2 data is the number of points
+ // For functions 3, 4, 10 & 16 data is the number of registers
+ // For function 15 data is the number of coils
+ //modbus_construct(volPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, VOL_ADR, 2, arrVoltage);
+ //modbus_construct_SDM120 (volPacket_2, SDM120C_METER_NUMBER, VOL_ADR, voltage_2.Array);
+ //modbus_construct(curPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, CUR_ADR, 2, arrCurrent);
+ //modbus_construct_SDM120(curPacket_2, SDM120C_METER_NUMBER, CUR_ADR, current_2.Array);
+ 
+ 
 }
 
 void loop() {
