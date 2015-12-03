@@ -6,7 +6,7 @@
 *  Poner el SMD120 en modo -SET- pulsando durante 3 segundos en el pulsador.
 *  Introducir los nuevos datos por el terminal serial
 *  En caso de introducir un valor no válido, no realiza la acción y salta al siguiente parámetro
-*  Algunos parametros requieren reiniciar el SMD120 para tener efecto
+*  Algunos parametros requieren reiniciar el SMD120 para tener efecto, eperar a completar el programa para reiniciar...
 *  Materiales 
 *    Arduino Mega
 *    Modulo RS485 
@@ -21,7 +21,7 @@
 #include <SimpleModbusMasterSDM120.h>
 
 // Direcciones registros de datos de configuración de lectura y escritura, valores tipo float.
-// Utilizar funcion 03 para lectura, función 10 para escritura, numero de bytes 4.
+// Utilizar funcion 03 para lectura, función 10 para escritura, 2 registros, número de bytes 4.
 
  #define ID_ADR          0X0014    // meter id (1-247).
  #define BAUD_ADR        0X001C    // Baud rate (0:2400 1:4800 2:9600 5:1200)
@@ -39,7 +39,6 @@ Constants are provided for:
   Function 2  - READ_INPUT_STATUS
   Function 3  - READ_HOLDING_REGISTERS 
   Function 4  - READ_INPUT_REGISTERS
-  Function 10 - WRITE_HOLDING_REGISTERS //NEW function
   Function 15 - FORCE_MULTIPLE_COILS
   Function 16 - PRESET_MULTIPLE_REGISTERS 
 
@@ -58,7 +57,7 @@ Constants are provided for:
  #define TIMEOUT 1000
  #define POLLING 5000    // the scan rate 
  #define RETRYCOUNT 10   // numero de reintentos, para volver set the "connection" variable to true.
- #define TXENPIN  17     // Pin cambio recibir/trasmiste para el driver RS485
+ #define TXENPIN  17     // Pin cambio recibir/transmite para el driver RS485
 
 
 // This is the easiest way to create new packets
@@ -120,11 +119,21 @@ void setup() {
  // Iniciamos comunicación modbus SERIAL1 Arduino Mega.
  modbus_configure(&Serial1, SDM120C_BAUDRATE, SDM120C_BYTEFORMAT, TIMEOUT, POLLING, RETRYCOUNT, TXENPIN, packets, TOTAL_NO_OF_PACKETS);
  //Lee el valor de registro id
- modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, ID_ADR, parameter.Array);
- 
+ modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, ID_ADR, 2, parameter.Array);
+ do {
+  modbus_update();
+  } while(modbus.available()______);
+  Serial.print(F("Meter Id: ")); Serial.println(parameter.F,1);
+  Serial.print(F("New Id: ")); 
+  while(!Serial.available>0){}
+  newParameter = Serial.parseInt();
+  if (newParameter >= 1 && newParameter <=247){
+     parameter.F = (float)newParameter;
+     modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, ID_ADR, 2, parameter.Array);
+  do
  // modbus_construct(packet, id, function, address, data, register array)    
  // For functions 1 & 2 data is the number of points
- // For functions 3, 4, 10 & 16 data is the number of registers
+ // For functions 3, 4 & 16 data is the number of registers
  // For function 15 data is the number of coils
  //modbus_construct(volPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, VOL_ADR, 2, arrVoltage);
  //modbus_construct_SDM120 (volPacket_2, SDM120C_METER_NUMBER, VOL_ADR, voltage_2.Array);
