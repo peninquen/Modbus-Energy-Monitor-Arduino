@@ -1,35 +1,35 @@
 /*  SDM120C Modbus RTU Protocol con Arduino.
 *  version 0.0.1 by @peninquen
-*  based on version 0.0.4  by @cosmopaco. 
+*  based on version 0.0.4  by @cosmopaco.
 *
 *  Sketch para modificar los parametros de comunicación del dispositivo:
 *  Poner el SMD120 en modo -SET- pulsando durante 3 segundos en el pulsador.
 *  Introducir los nuevos datos por el terminal serial
 *  En caso de introducir un valor no válido, no realiza la acción y salta al siguiente parámetro
 *  Algunos parametros requieren reiniciar el SMD120 para tener efecto, eperar a completar el programa para reiniciar...
-*  Materiales 
+*  Materiales
 *    Arduino Mega
-*    Modulo RS485 
+*    Modulo RS485
 *    Conexiones (Configuracion por defecto) Puerto serial 1
 *    Arduino pin   Modulo RS485 pin
-*    19            RO (receive out) 
+*    19            RO (receive out)
 *    18            DI (data in)
 *    17            DE/RE (data enable/receive enable).
-*    
-*  
+*
+*
 */
 #include <SimpleModbusMasterSDM120.h>
 
 // Direcciones registros de datos de configuración de lectura y escritura, valores tipo float.
 // Utilizar funcion 03 para lectura, función 10 para escritura, 2 registros, número de bytes 4.
 
- #define ID_ADR          0X0014    // meter id (1-247).
- #define BAUD_ADR        0X001C    // Baud rate (0:2400 1:4800 2:9600 5:1200)
- #define TURN_ADR        0XF900    // Tiempo entre pantallas (0-30s)
- #define PULSE1_ADR      0XF910    // Pulsos/Kwh (1:1000, 2:100, 3:1 pulso/Kwh)
- #define MODE_ADR        0XF920    // Modo medida energía (1-3)
- #define PULSE1_MODE_ADR 0XF930    // Modo salida pulsos a led (0:imp+exp, 1:imp, 2:exp)
- //
+#define ID_ADR          0X0014    // meter id (1-247).
+#define BAUD_ADR        0X001C    // Baud rate (0:2400 1:4800 2:9600 5:1200)
+#define TURN_ADR        0XF900    // Tiempo entre pantallas (0-30s)
+#define PULSE1_ADR      0XF910    // Pulsos/Kwh (1:1000, 2:100, 3:10 4:1 pulso/Kwh)
+#define MODE_ADR        0XF920    // Modo medida energía (1-3)
+#define PULSE1_MODE_ADR 0XF930    // Modo salida pulsos a led (0:imp+exp, 1:imp, 2:exp)
+//
 
 
 
@@ -37,27 +37,28 @@
 Constants are provided for:
   Function 1  - READ_COIL_STATUS
   Function 2  - READ_INPUT_STATUS
-  Function 3  - READ_HOLDING_REGISTERS 
+  Function 3  - READ_HOLDING_REGISTERS
   Function 4  - READ_INPUT_REGISTERS
   Function 15 - FORCE_MULTIPLE_COILS
-  Function 16 - PRESET_MULTIPLE_REGISTERS 
+  Function 16 - PRESET_MULTIPLE_REGISTERS
 
    Valid modbus byte formats are:
     SERIAL_8N2: 1 start bit, 8 data bits, 2 stop bits
     SERIAL_8E1: 1 start bit, 8 data bits, 1 Even parity bit, 1 stop bit
     SERIAL_8O1: 1 start bit, 8 data bits, 1 Odd parity bit, 1 stop bit
 */
-// Estos parametros son un poco confusos dependiendo del manual la opción por defecto puede cambiar.
-// Verificar que realmente tiene estos parametros.
- #define SDM120C_METER_NUMBER   1
- #define SDM120C_BAUDRATE       2400
- #define SDM120C_BYTEFORMAT     SERIAL_8N2    //Prty n
-// 
+// Verificar que realmente tiene estos parametros antes de empezar.
+// Pulsar el botón para pasar por las pantallas hasta las de configuración.
+#define SDM120C_METER_NUMBER   1             // Id 001
+#define SDM120C_BAUDRATE       2400          // b 2400
+#define SDM120C_BYTEFORMAT     SERIAL_8N2    // Prty n
+//
 
- #define TIMEOUT 1000
- #define POLLING 5000    // the scan rate 
- #define RETRYCOUNT 10   // numero de reintentos, para volver set the "connection" variable to true.
- #define TXENPIN  17     // Pin cambio recibir/transmite para el driver RS485
+#define TIMEOUT 1000     // tiempo hasta dar por fallida la petición
+#define POLLING 5000     // tiempo entre toma de datos, no se usa, solo una petición por parámetro.
+#define RETRYCOUNT 10    // numero de reintentos fallidos hasta 'connection' false que desactiva el packet
+// para volver poner 'connection' a true.
+#define TXENPIN  17      // Pin cambio recibir/transmite para el driver RS485
 
 
 // This is the easiest way to create new packets
@@ -65,8 +66,8 @@ Constants are provided for:
 // is automatically updated.
 enum
 {
- PACKET1,
- TOTAL_NO_OF_PACKETS // leave this last entry
+  PACKET1,
+  TOTAL_NO_OF_PACKETS // leave this last entry
 };
 
 // Create an array of Packets to be configured
@@ -79,113 +80,136 @@ Packet packets[TOTAL_NO_OF_PACKETS];
 packetPointer parameterPacket = &packets[PACKET1];
 
 
-// Union 
-union datas{
- byte  b[4];
- float F;
- unsigned int Array[2]; 
-}parameter;
-
+// Union
+union datas {
+  byte  b[4];      // modo pruebas, en principio no se usa
+  float F;
+  unsigned int Array[2];
+} parameter;
+unsigned int newParameter;
 
 
 void setup() {
- //Iniciamos puerto serial"0" Arduino Mega para entrada/salida de datos.
- Serial.begin(9600);
- Serial.println(F("Config SDM120-Modbus"));
+  //Iniciamos puerto serial"0" Arduino Mega para entrada/salida de datos.
+  Serial.begin(9600);
+  Serial.println(F("Config SDM120-Modbus"));
+  Serial.println(F("Long press button to enter -SET- mode"));
 
- /* Initialize communication settings:
-    parameters(HardwareSerial* SerialPort,
-   long baud, 
-   unsigned char byteFormat,
-   unsigned int timeout, 
-   unsigned int polling, 
-   unsigned char retry_count, 
-   unsigned char TxEnablePin,
-   Packet* packets, 
-   unsigned int total_no_of_packets);
+  // Iniciamos comunicación modbus SERIAL1 Arduino Mega.
+  modbus_configure(&Serial1, SDM120C_BAUDRATE, SDM120C_BYTEFORMAT, TIMEOUT, POLLING, RETRYCOUNT, TXENPIN, packets, TOTAL_NO_OF_PACKETS);
 
-    Valid modbus byte formats are:
-    SERIAL_8N2: 1 start bit, 8 data bits, 2 stop bits
-    SERIAL_8E1: 1 start bit, 8 data bits, 1 Even parity bit, 1 stop bit
-    SERIAL_8O1: 1 start bit, 8 data bits, 1 Odd parity bit, 1 stop bit
-    
-    You can obviously use SERIAL_8N1 but this does not adhere to the
-    Modbus specifications. That said, I have tested the SERIAL_8N1 option 
-    on various commercial masters and slaves that were suppose to adhere
-    to this specification and was always able to communicate... Go figure.
-    
-    These are already defined in the Arduino global name space. 
- */ 
- // Iniciamos comunicación modbus SERIAL1 Arduino Mega.
- modbus_configure(&Serial1, SDM120C_BAUDRATE, SDM120C_BYTEFORMAT, TIMEOUT, POLLING, RETRYCOUNT, TXENPIN, packets, TOTAL_NO_OF_PACKETS);
- //Lee el valor de registro id
- modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, ID_ADR, 2, parameter.Array);
- do {
-  modbus_update();
-  } while(modbus.available()______);
-  Serial.print(F("Meter Id: ")); Serial.println(parameter.F,1);
-  Serial.print(F("New Id: ")); 
-  while(!Serial.available>0){}
+  //Procesa el valor de registro id
+  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, ID_ADR, 2, parameter.Array);
+  if (!processRequest()) return;
+  Serial.print(F("Meter Id: ")); Serial.println(parameter.F, 1);
+  Serial.print(F("New Id: "));
+  while (Serial.available() == 0) {}
   newParameter = Serial.parseInt();
-  if (newParameter >= 1 && newParameter <=247){
-     parameter.F = (float)newParameter;
-     modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, ID_ADR, 2, parameter.Array);
-  do
- // modbus_construct(packet, id, function, address, data, register array)    
- // For functions 1 & 2 data is the number of points
- // For functions 3, 4 & 16 data is the number of registers
- // For function 15 data is the number of coils
- //modbus_construct(volPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, VOL_ADR, 2, arrVoltage);
- //modbus_construct_SDM120 (volPacket_2, SDM120C_METER_NUMBER, VOL_ADR, voltage_2.Array);
- //modbus_construct(curPacket, SDM120C_METER_NUMBER, READ_INPUT_REGISTERS, CUR_ADR, 2, arrCurrent);
- //modbus_construct_SDM120(curPacket_2, SDM120C_METER_NUMBER, CUR_ADR, current_2.Array);
- 
- 
+  if (newParameter >= 1 && newParameter <= 247) {
+    parameter.F = (float)newParameter;
+    Serial.print(parameter.F, 1);
+//    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, ID_ADR, 2, parameter.Array);
+//    if (!processRequest()) return;
+    Serial.println(F(" done"));
+  }
+
+  //Procesa el valor de registro baud rate
+  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, BAUD_ADR, 2, parameter.Array);
+  if (!processRequest()) return;
+  Serial.print(F("Baud rate (0:2400 1:4800 2:9600 5:1200): ")); Serial.println(parameter.F, 1);
+  Serial.print(F("New baud rate: "));
+  while (Serial.available() == 0) {}
+  newParameter = Serial.parseInt();
+  switch (newParameter) {
+    case 0:
+    case 1:
+    case 2:
+    case 5:
+      parameter.F = (float)newParameter;
+      Serial.print(parameter.F, 1);
+//      modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, BAUD_ADR, 2, parameter.Array);
+//      if (!processRequest()) return;
+      Serial.println(F(" done"));
+  }
+
+  //Procesa el valor de registro 'tiempo entre pantallas'
+  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, TURN_ADR, 2, parameter.Array);
+  if (!processRequest()) return;
+  Serial.print(F("Time of display in turns (0 - 30 seconds): ")); Serial.print(parameter.Array[1], HEX); Serial.println(parameter.Array[0], HEX);
+  Serial.print(F("New time: "));
+  while (Serial.available() == 0) {}
+  newParameter = Serial.parseInt();
+  if (newParameter >= 0 && newParameter <= 30) {
+    parameter.Array[0] = newParameter % 10 | (newParameter / 10 << 4); //convert to BCD
+    Serial.print(parameter.Array[0], HEX);
+//    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, TURN_ADR, 2, parameter.Array);
+//    if (!processRequest()) return;
+    Serial.println(F(" done"));
+  }
+
+  //Procesa el valor de registro 'salida pulso 1'
+  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, PULSE1_ADR, 2, parameter.Array);
+  if (!processRequest()) return;
+  Serial.print(F("Pulse 1 output (1:1000, 2:100, 3:10 4:1 imp/Kwh): ")); Serial.println(parameter.Array[0], HEX);
+  Serial.print(F("New pulse 1 output value: "));
+  while (Serial.available() == 0) {}
+  newParameter = Serial.parseInt();
+  if (newParameter >= 1 && newParameter <= 4) {
+    parameter.Array[0] = newParameter;
+    Serial.print(parameter.Array[0], HEX);
+//    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, PULSE1_ADR, 2, parameter.Array);
+//    if (!processRequest()) return;
+    Serial.println(F(" done"));
+  }
+
+  //Procesa el valor de registro 'modo medida de energía'
+  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, MODE_ADR, 2, parameter.Array);
+  if (!processRequest()) return;
+  Serial.print(F("Measurement mode (1:mode 1, 2:mode 2, 3:mode 3): ")); Serial.println(parameter.Array[0], HEX);
+  Serial.print(F("New pulse 1 output value: "));
+  while (Serial.available() == 0) {}
+  newParameter = Serial.parseInt();
+  if (newParameter >= 1 && newParameter <= 3) {
+    parameter.Array[0] = newParameter;
+    Serial.print(parameter.Array[0], HEX);
+//    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, MODE_ADR, 2, parameter.Array);
+//    if (!processRequest()) return;
+    Serial.println(F(" done"));
+  }
+
+  //Procesa el valor de registro 'modo salida pulso 1'
+  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, MODE_ADR, 2, parameter.Array);
+  if (!processRequest()) return;
+  Serial.print(F("Pulse 1 output mode (0:imp+exp, 1:imp, 2:exp): ")); Serial.println(parameter.Array[0], HEX);
+  Serial.print(F("New pulse 1 output mode: "));
+  while (Serial.available() == 0) {}
+  newParameter = Serial.parseInt();
+  if (newParameter >= 1 && newParameter <= 2) {
+    parameter.Array[0] = newParameter;
+    Serial.print(parameter.Array[0], HEX);
+//    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, MODE_ADR, 2, parameter.Array);
+//    if (!processRequest()) return;
+    Serial.println(F(" done"));
+  }
+
+  // Salir del modo -SET- para que se hagan efectivos los cambios, después apagar y encender el SMD120
+  Serial.println(F("Now long press for 3 seconds to exit the -SET- mode. Then restart the SMD120 to aply the changes."));
 }
 
-void loop() {
- static boolean b = false ;
- static unsigned long oldMillis;  
- modbus_update();
- if( (millis()-oldMillis) > POLLING){
-   unsigned long temp;
-   float v;
-   digitalWrite(13,b);
-   b++;    
-   oldMillis=millis();  
-   
-   temp = (unsigned long)arrVoltage[0] << 16 | arrVoltage[1];
-   v = *(float*)&temp;
-   Serial.print(F(" Voltaje Modo 1="));
-   Serial.println(v, 1);
+void loop() {} // no hace nada...
 
-   Serial.print(F(" Voltaje Modo 2="));
-   Serial.println(voltage_2.f, 1);
-   
-   temp = (unsigned long)arrCurrent[0] << 16 | arrCurrent[1];
-   v = *(float*)&temp;   
-   Serial.print(F(" Corriente="));
-   Serial.println(v, 1);
-   
-   v= (float)current_2.f;
-   Serial.print(F(" Corriente_2="));
-   Serial.println(v, 1);
-   
-   Serial.print(F("Voltaje array="));
-   Serial.print(arrVoltage[0],HEX);
-   Serial.println(arrVoltage[1],HEX);   
+boolean  processRequest() {
+  unsigned int successfulRequests = parameterPacket->successful_requests; // Tomo nota del número actual de peticiones con éxito
+  do {
+    modbus_update(); //en marcha la FSM para procesar...
+  } while ((successfulRequests == parameterPacket->successful_requests) && (parameterPacket->connection)); //repetir mientras no haya respuesta y esté activa la conexión
+  if (parameterPacket->connection) { // si hay conexión es que ha sido éxito
+    parameterPacket->connection = 0; // desactiva la conexión hasta construir un nuevo packet
+    return true;
+  }
+  else {
+    Serial.println(F("No connection"));
+    return false;
 
-   Serial.print(F("Voltaje_2 array="));
-   Serial.print(voltage_2.Array[0],HEX);
-   Serial.println(voltage_2.Array[1],HEX);
- 
-   
-   Serial.print(F("Current array="));
-   Serial.print(arrCurrent[0],HEX);
-   Serial.println(arrCurrent[1],HEX);
-
-   Serial.print(F("Current_2 array="));
-   Serial.print(current_2.Array[0],HEX);
-   Serial.println(current_2.Array[1],HEX);   
- } 
+  }
 }
