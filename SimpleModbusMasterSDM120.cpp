@@ -1,7 +1,7 @@
 #include "SimpleModbusMasterSDM120.h"
 #include "HardwareSerial.h"
 
-#define SERIAL_OUTPUT 1 //VERBOSE
+//#define SERIAL_OUTPUT 1 //VERBOSE
 
 #if SERIAL_OUTPUT
 #   define SERIAL_BEGIN(...) Serial.begin(__VA_ARGS__)
