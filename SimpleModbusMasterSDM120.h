@@ -1,4 +1,4 @@
-#ifndef SIMPLE_MODBUS_MASTER_SMD120
+#ifndef SIMPLE_MODBUS_MASTER_SDM120
 #define SIMPLE_MODBUS_MASTER_SDM120
 
 // SimpleModbusMasterV12 modificada para powerMeter SDM120C
