@@ -3,7 +3,7 @@
 *  based on version 0.0.4  by @cosmopaco.
 *
 *  Sketch para modificar los parametros de comunicación del dispositivo:
-*  Poner el SMD120 en modo -SET- pulsando durante 3 segundos en el pulsador.
+*  Poner el SDM120 en modo -SET- pulsando durante 3 segundos en el pulsador.
 *  Introducir los nuevos datos por el terminal serial
 *  En caso de introducir un valor no válido, no realiza la acción y salta al siguiente parámetro
 *  Algunos parametros requieren reiniciar el SMD120 para tener efecto, eperar a completar el programa para reiniciar...
@@ -16,12 +16,11 @@
 *    18            DI (data in)
 *    17            DE/RE (data enable/receive enable).
 *
-*
 */
 #include <SimpleModbusMasterSDM120.h>
-
+# define SERIAL_OUTPUT 1 // verbose
 // Direcciones registros de datos de configuración de lectura y escritura, valores tipo float.
-// Utilizar funcion 03 para lectura, función 10 para escritura, 2 registros, número de bytes 4.
+// Utilizar funcion 03 para lectura, función 16 para escritura, 2 registros, número de bytes 4.
 
 #define ID_ADR          0X0014    // meter id (1-247).
 #define BAUD_ADR        0X001C    // Baud rate (0:2400 1:4800 2:9600 5:1200)
@@ -30,8 +29,6 @@
 #define MODE_ADR        0XF920    // Modo medida energía (1-3)
 #define PULSE1_MODE_ADR 0XF930    // Modo salida pulsos a led (0:imp+exp, 1:imp, 2:exp)
 //
-
-
 
 /*
 Constants are provided for:
@@ -103,7 +100,7 @@ void setup() {
   if (!processRequest()) return;
   Serial.print(F("Meter Id: ")); Serial.println(parameter.F, 1);
   Serial.print(F("New Id: "));
-  while (Serial.available() == 0) {}
+  while (Serial.available()) {}
   newParameter = Serial.parseInt();
   if (newParameter >= 1 && newParameter <= 247) {
     parameter.F = (float)newParameter;
@@ -199,7 +196,7 @@ void setup() {
 void loop() {} // no hace nada...
 
 boolean  processRequest() {
-  unsigned int successfulRequests = parameterPacket->successful_requests; // Tomo nota del número actual de peticiones con éxito
+  unsigned int successfulRequests = parameterPacket->successful_requests; // número actual de peticiones con éxito
   do {
     modbus_update(); //en marcha la FSM para procesar...
   } while ((successfulRequests == parameterPacket->successful_requests) && (parameterPacket->connection)); //repetir mientras no haya respuesta y esté activa la conexión
