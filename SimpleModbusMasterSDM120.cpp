@@ -189,7 +189,7 @@ unsigned char construct_F16()
   unsigned char no_of_registers = packet->data;
   unsigned int temp;
 
-  for (unsigned char i = no_of_registers; i ; i--)
+  for (unsigned char i = no_of_registers; i; i--)
   {
     temp = packet->register_array[i - 1]; // get the data
     frame[index] = temp >> 8;
