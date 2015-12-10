@@ -214,7 +214,7 @@ void waiting_for_reply()
   {
     unsigned char overflowFlag = 0;
     buffer = 0;
-    SERIAL_PRINT("SLAVE: ");
+    Serial.print("SLAVE: ");
     while ((*ModbusPort).available())
     {
       // The maximum number of bytes is limited to the serial buffer size
@@ -230,18 +230,18 @@ void waiting_for_reply()
           overflowFlag = 1;
 
         frame[buffer] = (*ModbusPort).read();
-        SERIAL_PRINT(frame[buffer], HEX); 
+        Serial.print(frame[buffer], HEX); Serial.print("-");
         buffer++;
       }
-                   // This is not 100% correct but it will suffice.
-                   // worst case scenario is if more than one character time expires
-                   // while reading from the buffer then the buffer is most likely empty
-                   // If there are more bytes after such a delay it is not supposed to
-                   // be received and thus will force a frame_error.
-      SERIAL_PRINTLN();
+      // This is not 100% correct but it will suffice.
+      // worst case scenario is if more than one character time expires
+      // while reading from the buffer then the buffer is most likely empty
+      // If there are more bytes after such a delay it is not supposed to
+      // be received and thus will force a frame_error.
+
       delayMicroseconds(T1_5); // inter character time out
     }
-
+    Serial.println();
     // The minimum buffer size from a slave can be an exception response of
     // 5 bytes. If the buffer was partially filled set a frame_error.
     // The maximum number of bytes in a modbus packet is 256 bytes.
@@ -367,14 +367,14 @@ void process_F3_F4()
 {
   // check number of bytes returned - unsigned int == 2 bytes
   // data for function 3 & 4 is the number of registers
-
   if (frame[2] == (packet->data * 2))
   {
     unsigned char index = 3;
-    for (unsigned char i = packet->data; i == 0 ; i--)
-    {
+    for (unsigned char i = packet->data; i; i--)
+    {      
       // start at the 4th element in the frame and combine the Lo byte
       packet->register_array[i - 1] = (frame[index] << 8) | frame[index + 1];
+      Serial.print(i-1);Serial.print("->");Serial.println(packet->register_array[i-1], HEX);
       index += 2;
     }
     processSuccess();
@@ -519,12 +519,13 @@ unsigned int calculateCRC(unsigned char bufferSize)
 void sendPacket(unsigned char bufferSize)
 {
   digitalWrite(TxEnablePin, HIGH);
-  SERIAL_PRINT("MASTER: ");
-  for (unsigned char i = 0; i < bufferSize; i++)
+  Serial.print("MASTER: ");
+  for (unsigned char i = 0; i < bufferSize; i++) {
     (*ModbusPort).write(frame[i]);
-  SERIAL_PRINT(frame[i], HEX);
+    Serial.print(frame[i], HEX);Serial.print("-");
+  }
   (*ModbusPort).flush();
-  SERIAL_PRINTLN();
+  Serial.println();
   // It may be necessary to add a another character delay T1_5 here to
   // avoid truncating the message on slow and long distance connections
 
