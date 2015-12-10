@@ -189,7 +189,7 @@ unsigned char construct_F16()
   unsigned char no_of_registers = packet->data;
   unsigned int temp;
 
-  for (unsigned char i = no_of_registers; i; i--)
+  for (unsigned char i = no_of_registers; i ; i--)
   {
     temp = packet->register_array[i - 1]; // get the data
     frame[index] = temp >> 8;
@@ -230,7 +230,9 @@ void waiting_for_reply()
           overflowFlag = 1;
 
         frame[buffer] = (*ModbusPort).read();
-        Serial.print(frame[buffer], HEX); Serial.print("-");
+        Serial.print(" ");
+        if(frame[buffer] < 10) Serial.print("0");
+        Serial.print(frame[buffer], HEX); 
         buffer++;
       }
       // This is not 100% correct but it will suffice.
@@ -519,10 +521,12 @@ unsigned int calculateCRC(unsigned char bufferSize)
 void sendPacket(unsigned char bufferSize)
 {
   digitalWrite(TxEnablePin, HIGH);
-  Serial.print("MASTER: ");
+  Serial.print("MASTER:");
   for (unsigned char i = 0; i < bufferSize; i++) {
     (*ModbusPort).write(frame[i]);
-    Serial.print(frame[i], HEX);Serial.print("-");
+    Serial.print(" ");
+    if (frame[i] < 10) Serial.print("0");
+    Serial.print(frame[i], HEX);
   }
   (*ModbusPort).flush();
   Serial.println();
