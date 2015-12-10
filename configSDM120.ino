@@ -17,8 +17,9 @@
 *    17            DE/RE (data enable/receive enable).
 *
 */
+# define SERIAL_OUTPUT 1 // verbose
 #include "SimpleModbusMasterSDM120.h"
-# define SERIAL_OUTPUT 0 // verbose
+
 // Direcciones registros de datos de configuración de lectura y escritura, valores tipo float.
 // Utilizar funcion 03 para lectura, función 16 para escritura, 2 registros, número de bytes 4.
 
@@ -45,14 +46,14 @@ Constants are provided for:
 */
 // Verificar que realmente tiene estos parametros antes de empezar.
 // Pulsar el botón para pasar por las pantallas hasta las de configuración.
-#define SDM120C_METER_NUMBER   1             // Id 001
+unsigned int idNumber = 1;                   // Id 001
 #define SDM120C_BAUDRATE       2400          // b 2400
 #define SDM120C_BYTEFORMAT     SERIAL_8N2    // Prty n
 //
 
 #define TIMEOUT 1000     // tiempo hasta dar por fallida la petición
 #define POLLING 5000     // tiempo entre toma de datos, no se usa, solo una petición por parámetro.
-#define RETRYCOUNT 10    // numero de reintentos fallidos hasta 'connection' false que desactiva el packet
+#define RETRYCOUNT 2    // numero de reintentos fallidos hasta 'connection' false que desactiva el packet
 // para volver poner 'connection' a true.
 #define TXENPIN  17      // Pin cambio recibir/transmite para el driver RS485
 
@@ -90,33 +91,35 @@ void setup() {
   Serial.begin(9600);
   delay(1000);
   Serial.println(F("Config SDM120-Modbus"));
+  Serial.println(F("Enter expected Id:"));
+  while (!Serial.available()) {}
+  idNumber = Serial.parseInt();
   Serial.println(F("Long press button to enter -SET- mode"));
 
   // Iniciamos comunicación modbus SERIAL1 Arduino Mega.
   modbus_configure(&Serial1, SDM120C_BAUDRATE, SDM120C_BYTEFORMAT, TIMEOUT, POLLING, RETRYCOUNT, TXENPIN, packets, TOTAL_NO_OF_PACKETS);
 
   //Procesa el valor de registro id
-  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, ID_ADR, 2, parameter.Array);
+  modbus_construct(parameterPacket, idNumber, READ_HOLDING_REGISTERS, ID_ADR, 2, parameter.Array);
   if (!processRequest()) return;
-  Serial.print(parameter.Array[1], HEX); Serial.println(parameter.Array[0], HEX);
-  Serial.print(F("Meter Id: ")); Serial.println(parameter.F, 1);
+  Serial.print(F("Meter Id: ")); Serial.println(parameter.F, 0);
   Serial.print(F("New Id: "));
   while (!Serial.available()) {}
   newParameter = Serial.parseInt();
   if (newParameter >= 1 && newParameter <= 247) {
     parameter.F = (float)newParameter;
-    Serial.println(parameter.F, 1);
-    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, ID_ADR, 2, parameter.Array);
+    Serial.println(parameter.F, 0);
+    modbus_construct(parameterPacket, idNumber, PRESET_MULTIPLE_REGISTERS, ID_ADR, 2, parameter.Array);
     if (!processRequest()) return;
     Serial.println(F(" done"));
-    
+    idNumber = newParameter; // actuliza el id para las siguientes peticiones
   }
-
+  else Serial.println(F("Skip"));
+  
   //Procesa el valor de registro baud rate
-  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, BAUD_ADR, 2, parameter.Array);
+  modbus_construct(parameterPacket, idNumber, READ_HOLDING_REGISTERS, BAUD_ADR, 2, parameter.Array);
   if (!processRequest()) return;
-  Serial.print(parameter.Array[1], HEX); Serial.println(parameter.Array[0], HEX);
-  Serial.print(F("Baud rate (0:2400 1:4800 2:9600 5:1200): ")); Serial.println(parameter.F, 1);
+  Serial.print(F("Baud rate (0:2400 1:4800 2:9600 5:1200): ")); Serial.println(parameter.F, 0);
   Serial.print(F("New baud rate: "));
   while (!Serial.available()) {}
   newParameter = Serial.parseInt();
@@ -126,75 +129,77 @@ void setup() {
     case 2:
     case 5:
       parameter.F = (float)newParameter;
-      Serial.println(parameter.F, 1);
-      modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, BAUD_ADR, 2, parameter.Array);
+      Serial.println(parameter.F, 0);
+      modbus_construct(parameterPacket, idNumber, PRESET_MULTIPLE_REGISTERS, BAUD_ADR, 2, parameter.Array);
       if (!processRequest()) return;
       Serial.println(F(" done"));
+      break;
+    default: Serial.println(F("Skip"));
   }
 
   //Procesa el valor de registro 'tiempo entre pantallas'
-  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, TURN_ADR, 2, parameter.Array);
+  modbus_construct(parameterPacket, idNumber, READ_HOLDING_REGISTERS, TURN_ADR, 1, parameter.Array);
   if (!processRequest()) return;
-  Serial.print(parameter.Array[1], HEX); Serial.println(parameter.Array[0], HEX);
-  Serial.print(F("Time of display in turns (0 - 30 seconds): ")); Serial.print(parameter.Array[1], HEX); Serial.println(parameter.Array[0], HEX);
+  Serial.print(F("Time of display in turns (0 - 30 seconds): ")); Serial.print(parameter.Array[0]>>4); Serial.println(parameter.Array[0]%0x10);
   Serial.print(F("New time: "));
   while (!Serial.available()) {}
   newParameter = Serial.parseInt();
   if (newParameter >= 0 && newParameter <= 30) {
     parameter.Array[0] = newParameter % 10 | (newParameter / 10 << 4); //convert to BCD
-    Serial.println(parameter.Array[0], HEX);
-//    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, TURN_ADR, 2, parameter.Array);
-//    if (!processRequest()) return;
+    Serial.println(newParameter);
+    modbus_construct(parameterPacket, idNumber, PRESET_MULTIPLE_REGISTERS, TURN_ADR, 1, parameter.Array);
+    if (!processRequest()) return;
     Serial.println(F(" done"));
   }
+  else Serial.println(F("Skip"));
 
   //Procesa el valor de registro 'salida pulso 1'
-  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, PULSE1_ADR, 2, parameter.Array);
+  modbus_construct(parameterPacket, idNumber, READ_HOLDING_REGISTERS, PULSE1_ADR, 1, parameter.Array);
   if (!processRequest()) return;
-  Serial.print(parameter.Array[1], HEX); Serial.println(parameter.Array[0], HEX);
   Serial.print(F("Pulse 1 output (0:1000, 1:100, 2:10 3:1 imp/Kwh): ")); Serial.println(parameter.Array[0], HEX);
   Serial.print(F("New pulse 1 output value: "));
   while (!Serial.available()) {}
   newParameter = Serial.parseInt();
-  if (newParameter >= 1 && newParameter <= 4) {
+  if (newParameter >= 0 && newParameter <= 3) {
     parameter.Array[0] = newParameter;
     Serial.println(parameter.Array[0], HEX);
-    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, PULSE1_ADR, 2, parameter.Array);
+    modbus_construct(parameterPacket, idNumber, PRESET_MULTIPLE_REGISTERS, PULSE1_ADR, 1, parameter.Array);
     if (!processRequest()) return;
     Serial.println(F(" done"));
   }
-
-  //Procesa el valor de registro 'modo salida pulso 1'
-  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, PULSE1_MODE_ADR, 2, parameter.Array);
-  if (!processRequest()) return;
-  Serial.print(parameter.Array[1], HEX); Serial.println(parameter.Array[0], HEX);
-  Serial.print(F("Pulse 1 output mode (0:imp+exp, 1:imp, 2:exp): ")); Serial.println(parameter.Array[0], HEX);
-  Serial.print(F("New pulse 1 output mode: "));
-  while (!Serial.available()) {}
-  newParameter = Serial.parseInt();
-  if (newParameter >= 1 && newParameter <= 2) {
-    parameter.Array[0] = newParameter;
-    Serial.println(parameter.Array[0], HEX);
-    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, PULSE1_MODE_ADR, 2, parameter.Array);
-    if (!processRequest()) return;
-    Serial.println(F(" done"));
-  }
+  else Serial.println(F("Skip"));
 
   //Procesa el valor de registro 'modo medida de energía'
-  modbus_construct(parameterPacket, SDM120C_METER_NUMBER, READ_HOLDING_REGISTERS, MODE_ADR, 2, parameter.Array);
+  modbus_construct(parameterPacket, idNumber, READ_HOLDING_REGISTERS, MODE_ADR, 1, parameter.Array);
   if (!processRequest()) return;
-  Serial.print(parameter.Array[1], HEX); Serial.println(parameter.Array[0], HEX);
   Serial.print(F("Measurement mode (0:mode 1, 1:mode 2, 2:mode 3): ")); Serial.println(parameter.Array[0], HEX);
   Serial.print(F("New pulse 1 output value: "));
   while (!Serial.available()) {}
   newParameter = Serial.parseInt();
-  if (newParameter >= 1 && newParameter <= 3) {
+  if (newParameter >= 0 && newParameter <= 2) {
     parameter.Array[0] = newParameter;
     Serial.println(parameter.Array[0], HEX);
-    modbus_construct(parameterPacket, SDM120C_METER_NUMBER, PRESET_MULTIPLE_REGISTERS, MODE_ADR, 2, parameter.Array);
+    modbus_construct(parameterPacket, idNumber, PRESET_MULTIPLE_REGISTERS, MODE_ADR, 1, parameter.Array);
     if (!processRequest()) return;
     Serial.println(F(" done"));
   }
+  else Serial.println(F("Skip"));
+
+  //Procesa el valor de registro 'modo salida pulso 1'
+  modbus_construct(parameterPacket, idNumber, READ_HOLDING_REGISTERS, PULSE1_MODE_ADR, 1, parameter.Array);
+  if (!processRequest()) return;
+  Serial.print(F("Pulse 1 output mode (0:imp+exp, 1:imp, 2:exp): ")); Serial.println(parameter.Array[0], HEX);
+  Serial.print(F("New pulse 1 output mode: "));
+  while (!Serial.available()) {}
+  newParameter = Serial.parseInt();
+  if (newParameter >= 0 && newParameter <= 2) {
+    parameter.Array[0] = newParameter;
+    Serial.println(parameter.Array[0], HEX);
+    modbus_construct(parameterPacket, idNumber, PRESET_MULTIPLE_REGISTERS, PULSE1_MODE_ADR, 1, parameter.Array);
+    if (!processRequest()) return;
+    Serial.println(F(" done"));
+  }
+  else Serial.println(F("Skip"));
 
   // Salir del modo -SET- para que se hagan efectivos los cambios, después apagar y encender el SMD120
   Serial.println(F("Now long press for 3 seconds to exit the -SET- mode. Then restart the SMD120 to aply the changes."));
