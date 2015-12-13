@@ -28,7 +28,8 @@
 
 /*
  * Maintaining old definitions. 
-*/
+ */
+ 
 
 // Direcciones registros de datos solo lectura. Valores tipo float.
 // Utilizar funcion 04 lectura, numero de bytes 4.
