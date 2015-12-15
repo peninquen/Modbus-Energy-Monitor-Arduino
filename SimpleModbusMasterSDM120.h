@@ -87,6 +87,18 @@
 #define FORCE_MULTIPLE_COILS 15 // Forces each coil (0X reference) in a sequence of coils to either ON or OFF.
 #define PRESET_MULTIPLE_REGISTERS 16 // Presets values into a sequence of holding registers (4X references).
 
+#define MB_SUCCESS      0x00
+#define MB_INVALID_ID   0xE0
+#define MB_INVALID_FC   0xE1
+#define MB_TIMEOUT      0xE2
+#define MB_INVALID_CRC  0xE3
+#define MB_INVALID_BUFF 0xE4
+#define MB_ILLEGAL_FC   0x01
+#define MB_ILLEGAL_ADR  0x02
+#define MB_ILLEGAL_DATA 0x03
+#define MB_SLAVE_FAIL   0x04
+
+
 typedef struct
 {
   // specific packet info
@@ -138,5 +150,8 @@ void modbus_configure(HardwareSerial* SerialPort,
                       unsigned char _TxEnablePin,
                       Packet* _packets,
                       unsigned int _total_no_of_packets);
+                      
+boolean  processRequest(packetPointer pPacket);
+unsigned char processStatus(unsigned char status);
 
 #endif
