@@ -1,16 +1,16 @@
 #include "SimpleModbusMasterSDM120.h"
 #include "HardwareSerial.h"
 
-//#define SERIAL_OUTPUT 1 //VERBOSE
+//#define MODBUS_SERIAL_OUTPUT 1 //VERBOSE
 
-#if SERIAL_OUTPUT
-#   define SERIAL_BEGIN(...) Serial.begin(__VA_ARGS__)
-#   define SERIAL_PRINT(...) Serial.print(__VA_ARGS__)
-#   define SERIAL_PRINTLN(...) Serial.println(__VA_ARGS__)
+#if MODBUS_SERIAL_OUTPUT == 1
+#   define MODBUS_SERIAL_BEGIN(...) Serial.begin(__VA_ARGS__)
+#   define MODBUS_SERIAL_PRINT(...) Serial.print(__VA_ARGS__)
+#   define MODBUS_SERIAL_PRINTLN(...) Serial.println(__VA_ARGS__)
 #else
-#   define SERIAL_BEGIN(...)
-#   define SERIAL_PRINT(...)
-#   define SERIAL_PRINTLN(...)
+#   define MODBUS_SERIAL_BEGIN(...)
+#   define MODBUS_SERIAL_PRINT(...)
+#   define MODBUS_SERIAL_PRINTLN(...)
 #endif
 
 // state machine states
@@ -50,8 +50,6 @@ void process_F1_F2();
 void process_F4_SDM120();
 void process_F3_F4();
 void process_F15_F16();
-void processError();
-void processSuccess();
 unsigned int calculateCRC(unsigned char bufferSize);
 void sendPacket(unsigned char bufferSize);
 
@@ -82,8 +80,10 @@ void idle()
 
   do
   {
-    if (packet_index == total_no_of_packets) // wrap around to the beginning
+    if (packet_index == total_no_of_packets) {// wrap around to the beginning
       packet_index = 0;
+      
+    }
 
     // proceed to the next packet
     packet = &packetArray[packet_index];
@@ -140,7 +140,7 @@ void constructPacket()
   // if broadcast is requested (id == 0) for function 15 or 16 then override
   // the previous state and force a success since the slave wont respond
   if (packet->id == 0)
-    processSuccess();
+    processStatus(MB_SUCCESS);
 }
 
 unsigned char construct_F15()
@@ -214,7 +214,7 @@ void waiting_for_reply()
   {
     unsigned char overflowFlag = 0;
     buffer = 0;
-    Serial.print("SLAVE: ");
+    MODBUS_SERIAL_PRINT(" SLAVE:");
     while ((*ModbusPort).available())
     {
       // The maximum number of bytes is limited to the serial buffer size
@@ -230,9 +230,9 @@ void waiting_for_reply()
           overflowFlag = 1;
 
         frame[buffer] = (*ModbusPort).read();
-        Serial.print(" ");
-        if(frame[buffer] < 10) Serial.print("0");
-        Serial.print(frame[buffer], HEX); 
+        if(frame[buffer] < 0x10) MODBUS_SERIAL_PRINT(" 0");
+        else MODBUS_SERIAL_PRINT(" ");
+        MODBUS_SERIAL_PRINT(frame[buffer], HEX); 
         buffer++;
       }
       // This is not 100% correct but it will suffice.
@@ -243,14 +243,14 @@ void waiting_for_reply()
 
       delayMicroseconds(T1_5); // inter character time out
     }
-    Serial.println();
+    MODBUS_SERIAL_PRINTLN();
     // The minimum buffer size from a slave can be an exception response of
     // 5 bytes. If the buffer was partially filled set a frame_error.
     // The maximum number of bytes in a modbus packet is 256 bytes.
     // The serial buffer limits this to 128 bytes.
 
     if ((buffer < 5) || overflowFlag)
-      processError();
+      processStatus(MB_INVALID_BUFF);
 
     // Modbus over serial line datasheet states that if an unexpected slave
     // responded the master must do nothing and continue with the time out.
@@ -258,14 +258,14 @@ void waiting_for_reply()
     // have a quick turnaround and poll the right one again. If an unexpected
     // slave responded it will most likely be a frame error in any event
     else if (frame[0] != packet->id) // check id returned
-      processError();
+      processStatus(MB_INVALID_ID);
     else
       processReply();
   }
   else if ((millis() - delayStart) > timeout) // check timeout
   {
-    processError();
-    state = IDLE; //state change, override processError() state
+    processStatus(MB_TIMEOUT);
+    state = IDLE; //state change, override processStatus() state
   }
 }
 
@@ -282,7 +282,7 @@ void processReply()
     if ((frame[1] & 0x80) == 0x80) // extract 0x80
     {
       packet->exception_errors++;
-      processError();
+      processStatus(MB_ILLEGAL_FC);
     }
     else
     {
@@ -303,15 +303,15 @@ void processReply()
         case PRESET_MULTIPLE_REGISTERS:
           process_F15_F16();
           break;
-        default: // illegal function returned
-          processError();
+        default: // invalid function returned
+          processStatus(MB_INVALID_FC);
           break;
       }
     }
   }
   else // checksum failed
   {
-    processError();
+    processStatus(MB_INVALID_CRC);
   }
 }
 
@@ -345,10 +345,10 @@ void process_F1_F2()
       }
       packet->register_array[i] = temp;
     }
-    processSuccess();
+    processStatus(MB_SUCCESS);
   }
   else // incorrect number of bytes returned
-    processError();
+    processStatus(MB_ILLEGAL_DATA);
 }
 
 void process_F4_SDM120()
@@ -358,10 +358,10 @@ void process_F4_SDM120()
   {
     packet->register_array[1] = (frame[3] << 8) | frame[4];
     packet->register_array[0] = (frame[5] << 8) | frame[6];
-    processSuccess();
+    processStatus(MB_SUCCESS);
   }
   else // incorrect number of bytes returned
-    processError();
+    processStatus(MB_ILLEGAL_DATA);
 }
 
 
@@ -376,13 +376,12 @@ void process_F3_F4()
     {      
       // start at the 4th element in the frame and combine the Lo byte
       packet->register_array[i - 1] = (frame[index] << 8) | frame[index + 1];
-      Serial.print(i-1);Serial.print("->");Serial.println(packet->register_array[i-1], HEX);
       index += 2;
     }
-    processSuccess();
+    processStatus(MB_SUCCESS);
   }
   else // incorrect number of bytes returned
-    processError();
+    processStatus(MB_ILLEGAL_DATA);
 }
 
 void process_F15_F16()
@@ -391,34 +390,38 @@ void process_F15_F16()
   unsigned int recieved_address = ((frame[2] << 8) | frame[3]);
   unsigned int recieved_data = ((frame[4] << 8) | frame[5]);
 
-  if ((recieved_address == packet->address) && (recieved_data == packet->data))
-    processSuccess();
-  else
-    processError();
+  if (recieved_address != packet->address) {
+    processStatus(MB_ILLEGAL_ADR);
+    return;
+  }
+  if (recieved_data != packet->data) {
+    processStatus(MB_ILLEGAL_DATA);
+    return;
+  }
+  processStatus(MB_SUCCESS);
 }
 
-void processError()
-{
-  packet->retries++;
-  packet->failed_requests++;
-
+unsigned char processStatus(unsigned char status){
+  switch (status) {
+    case MB_SUCCESS:
+      packet->successful_requests++; // transaction sent successfully
+      //packet->retries = 0; // if a request was successful reset the retry counter
+      break;
+    default: 
+      //packet->retries++;
+      packet->failed_requests++;
+  }
+  
   // if the number of retries have reached the max number of retries
   // allowable, stop requesting the specific packet
-  if (packet->retries == retry_count)
-  {
-    packet->connection = 0;
-    packet->retries = 0;
-  }
+  //if (packet->retries == retry_count)
+  //{
+  //  packet->connection = 0;
+  //  packet->retries = 0;
+  //}
   state = WAITING_FOR_TURNAROUND;
   delayStart = millis(); // start the turnaround delay
-}
-
-void processSuccess()
-{
-  packet->successful_requests++; // transaction sent successfully
-  packet->retries = 0; // if a request was successful reset the retry counter
-  state = WAITING_FOR_TURNAROUND;
-  delayStart = millis(); // start the turnaround delay
+  return status;
 }
 
 void modbus_configure(HardwareSerial* SerialPort,
@@ -521,19 +524,33 @@ unsigned int calculateCRC(unsigned char bufferSize)
 void sendPacket(unsigned char bufferSize)
 {
   digitalWrite(TxEnablePin, HIGH);
-  Serial.print("MASTER:");
+  MODBUS_SERIAL_PRINT("MASTER:");
   for (unsigned char i = 0; i < bufferSize; i++) {
     (*ModbusPort).write(frame[i]);
-    Serial.print(" ");
-    if (frame[i] < 10) Serial.print("0");
-    Serial.print(frame[i], HEX);
+    if (frame[i] < 0x10) MODBUS_SERIAL_PRINT(" 0");
+    else MODBUS_SERIAL_PRINT(" ");
+    MODBUS_SERIAL_PRINT(frame[i], HEX);
   }
   (*ModbusPort).flush();
-  Serial.println();
+  MODBUS_SERIAL_PRINTLN();
   // It may be necessary to add a another character delay T1_5 here to
   // avoid truncating the message on slow and long distance connections
 
   digitalWrite(TxEnablePin, LOW);
 
   delayStart = millis(); // start the timeout delay
+}
+
+boolean  processRequest(packetPointer pPacket) {
+  unsigned int successfulRequests = pPacket->successful_requests; // número actual de peticiones con éxito
+  do {
+    modbus_update(); //en marcha la FSM para procesar...
+  } while ((successfulRequests == pPacket->successful_requests) && (pPacket->connection)); //repetir mientras no haya respuesta y esté activa la conexión
+  if (pPacket->connection) { // si hay conexión es que ha sido éxito
+    pPacket->connection = 0; // desactiva la conexión hasta construir un nuevo packet
+    return true;
+  }
+  else {
+    return false;
+  }
 }
