@@ -19,7 +19,7 @@
 #define TRENERGY  0x0158
 
 // Read/Write Configuration. Funtion 16
-#define NPARSTOP  0x0012		//HEX
+#define NPARSTOP  0x0012		//HEX=
 #define DEVICE_ID 0x0014		//Float
 #define BAUD_RATE 0x001C		//Float
 #define TIME_DISP_220 0xF500 	//BCD
