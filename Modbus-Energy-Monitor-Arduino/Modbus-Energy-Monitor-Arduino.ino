@@ -146,29 +146,29 @@ void loop() {
 
     SERIAL_PRINT(currentMillis / 1000);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxVoltage / VOL_FAC, 1);
+    SERIAL_PRINT((float)maxVoltage / VOL_FAC, 1);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minVoltage /VOL_FAC, 1);
+    SERIAL_PRINT((float)minVoltage /VOL_FAC, 1);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxCurrent /CUR_FAC, 2);
+    SERIAL_PRINT((float)maxCurrent /CUR_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minCurrent / CUR_FAC, 2);
+    SERIAL_PRINT((float)minCurrent / CUR_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxPower / POW_FAC, 2);
+    SERIAL_PRINT((float)maxPower / POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minPower / POW_FAC, 2);
+    SERIAL_PRINT((float)minPower / POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxApower / POW_FAC, 2);
+    SERIAL_PRINT((float)maxApower / POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minApower /POW_FAC, 2);
+    SERIAL_PRINT((float)minApower /POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxFreq / FRE_FAC, 2);
+    SERIAL_PRINT((float)maxFreq / FRE_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minFreq / FRE_FAC, 2);
+    SERIAL_PRINT((float)minFreq / FRE_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(avgPower / ENE_FAC, 2);
+    SERIAL_PRINT((float)avgPower / ENE_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINTLN(energy /ENE_FAC, 2);
+    SERIAL_PRINTLN((float)energy /ENE_FAC, 2);
 
   }
 }
