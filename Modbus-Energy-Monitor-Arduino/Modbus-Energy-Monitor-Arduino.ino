@@ -30,12 +30,12 @@
 #define MB_BAUDRATE       2400          // b 2400
 #define MB_BYTEFORMAT     SERIAL_8N2    // Prty n
 #define TxEnablePin       17
-#define TIMEOUT           200
+#define TIMEOUT           100
 
 
 #define ID_1  1                       // id 001  modbus id of the energy monitor
 #define REFRESH_INTERVAL  5000        // refresh time, 5 SECONDS
-#define WRITE_INTERVAL 60000UL        // values send to serial port, 1 minute ( 60 * 1000)
+#define WRITE_INTERVAL 20000UL        // values send to serial port, 1 minute ( 60 * 1000)
 #define KWH_2_WS 36000000 
 
 // Direcciones registros de datos solo lectura. Valores tipo float.
@@ -87,6 +87,7 @@ boolean       firstData;
 void setup() {
   SERIAL_BEGIN(9600);
   MBserial.begin(MB_BAUDRATE, MB_BYTEFORMAT, TIMEOUT, REFRESH_INTERVAL);
+  delay(95);
   SERIAL_PRINTLN("time(s), maxVolt(V), minVolt(V), maxCurr(A) minCurr(A), maxPower(W), minPower(W), maxApPower(VA), minApPower(VA), maxFreq(Hz), minFreq(Hz), AvgPower (W), Energy(Kwh)");
 
   firstData = false;
@@ -145,29 +146,29 @@ void loop() {
 
     SERIAL_PRINT(currentMillis / 1000);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxVoltage / VOL_FAC);
+    SERIAL_PRINT(maxVoltage / VOL_FAC, 1);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minVoltage / VOL_FAC);
+    SERIAL_PRINT(minVoltage /VOL_FAC, 1);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxCurrent /CUR_FAC);
+    SERIAL_PRINT(maxCurrent /CUR_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minCurrent / CUR_FAC);
+    SERIAL_PRINT(minCurrent / CUR_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxPower / POW_FAC);
+    SERIAL_PRINT(maxPower / POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minPower /POW_FAC);
+    SERIAL_PRINT(minPower / POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxApower / POW_FAC);
+    SERIAL_PRINT(maxApower / POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minApower /POW_FAC);
+    SERIAL_PRINT(minApower /POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(maxFreq / FRE_FAC);
+    SERIAL_PRINT(maxFreq / FRE_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(minFreq /FRE_FAC);
+    SERIAL_PRINT(minFreq / FRE_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT(avgPower /ENE_FAC);
+    SERIAL_PRINT(avgPower / ENE_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINTLN(energy / ENE_FAC);
+    SERIAL_PRINTLN(energy /ENE_FAC, 2);
 
   }
 }
