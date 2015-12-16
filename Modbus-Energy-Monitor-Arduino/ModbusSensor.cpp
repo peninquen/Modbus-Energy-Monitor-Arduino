@@ -164,7 +164,7 @@ boolean modbusMaster::connect(modbusSensor * mbs) {
 // begin comunication using ModBus protocol over RS485
 void modbusMaster::begin(uint16_t baudrate, uint8_t byteFormat, uint16_t timeOut, uint16_t pollInterval) {
   _timeOut = timeOut;
-  _pollInterval = pollInterval;
+  _pollInterval = pollInterval - 1; // reduce 1 to compensate proccess delays
   if (baudrate > 19200)
     _T1_5 = 750;
   else
@@ -176,12 +176,13 @@ void modbusMaster::begin(uint16_t baudrate, uint8_t byteFormat, uint16_t timeOut
 
 // process FSM and check if the array of sensors has been requested and processed
 boolean modbusMaster::available() {
-  static uint8_t  indexSensor = 0;                // index of arrry of sensors
-  static uint32_t lastPollMillis = millis();      // time to check poll interval
-  static uint32_t sendMillis = lastPollMillis;    // time to check timeout interval
+  static uint8_t  indexSensor = 0;                 // index of arrry of sensors
+  static uint32_t nowMillis = millis();
+  static uint32_t lastPollMillis = nowMillis;      // time to check poll interval
+  static uint32_t sendMillis = nowMillis;          // time to check timeout interval
   static uint32_t receiveMillis = 0;
-  //  static uint32_t offlineMillis = lastPollMillis; // time to check offline interval
-  static uint8_t  lastStatus = MB_TIMEOUT;        // ¿offline?
+  //  static uint32_t offlineMillis = nowMillis;   // time to check offline interval
+//  static uint8_t  lastStatus = MB_TIMEOUT;         // ¿offline?
 
   switch (_state) {
     case SENDING:
@@ -215,8 +216,9 @@ boolean modbusMaster::available() {
       }
       return false;
     case STANDBY:
-      if ((millis() - lastPollMillis) > _pollInterval) {
-        lastPollMillis = millis();
+      nowMillis = millis();
+      if (nowMillis - lastPollMillis > _pollInterval) {
+        lastPollMillis = nowMillis;
         _state = SENDING;
       }
       return false;
