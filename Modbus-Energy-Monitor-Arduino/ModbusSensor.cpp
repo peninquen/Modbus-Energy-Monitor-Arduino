@@ -1,17 +1,17 @@
 /**********************************************************************
-* ModbusSensor.cpp
-* create ModbusSensor and ModbusMaster classes to process values from
-* a Eastron SMD120 and energy monitor family. 
-* 
-* version 0.1 ALPHA 14/12/2015
-* 
-* Author: Jaime García  @peninquen
-* License: Apache License Version 2.0.
-*
+  ModbusSensor.cpp
+  create ModbusSensor and ModbusMaster classes to process values from
+  a Eastron SMD120 and energy monitor family.
+
+  version 0.1 ALPHA 14/12/2015
+
+  Author: Jaime García  @peninquen
+  License: Apache License Version 2.0.
+
 **********************************************************************/
 //------------------------------------------------------------------------------
 
-//#define MODBUS_SERIAL_OUTPUT  //VERBOSE
+#define MODBUS_SERIAL_OUTPUT  //VERBOSE
 
 #ifdef MODBUS_SERIAL_OUTPUT
 #define MODBUS_SERIAL_BEGIN(...) Serial.begin(__VA_ARGS__)
@@ -33,7 +33,7 @@
 #define RECEIVING 2
 #define STANDBY   3
 
-#define WAITING_INTERVAL 60
+#define WAITING_INTERVAL 10
 
 #define READ_COIL_STATUS          0x01 // Reads the ON/OFF status of discrete outputs (0X references, coils) in the slave.
 #define READ_INPUT_STATUS         0x02 // Reads the ON/OFF status of discrete inputs (1X references) in the slave.
@@ -54,66 +54,66 @@
 #define MB_SLAVE_FAIL     0x05  // An error occurred when the instrument attempted to store an update to it’s configuration
 
 // What happens when _status is diferent to MB_VALID_DATA?
-#define CHANGE_TO_ZERO 0x00   
+#define CHANGE_TO_ZERO 0x00
 #define CHANGE_TO_ONE  0x01
 #define HOLD_VALUE     0xFF
 
 uint16_t calculateCRC(uint8_t *array, uint8_t num) {
-  uint16_t crc, temp;
-  crc = 0xFFFF;
-  for (uint8_t i = 0; i < num; i++) {
-    crc ^= array[i];
-    for (uint8_t j = 8; j; j--) {
-      if ((crc & 0x0001) != 0) {
-        crc >>= 1;
-        crc ^= 0xA001;
-      }
-      else
-        crc >>= 1;
+  uint16_t temp, temp2, flag;
+  temp = 0xFFFF;
+  for (uint8_t i = 0; i < num; i++)
+  {
+    temp = temp ^ array[i];
+    for (uint8_t j = 1; j <= 8; j++)
+    {
+      flag = temp & 0x0001;
+      temp >>= 1;
+      if (flag)
+        temp ^= 0xA001;
     }
-    // Reverse byte order.
-    temp = crc >> 8;
-    crc = (crc << 8) | temp;
-    crc &= 0xFFFF;
-    // the returned value is already swapped
-    // crcLo byte is first & crcHi byte is last
-    return crc;
   }
+  // the returned value is already swapped
+  // crcLo byte is first & crcHi byte is last
+  return temp;
 }
 
 // Constructor
 modbusSensor::modbusSensor(modbusMaster * mbm, uint8_t id, uint16_t adr, uint8_t hold) {
-  _frame.id = id;
-  _frame.fc = READ_INPUT_REGISTERS;
-  _frame.address = adr;
-  _frame.data = 0x02;
-  _frame.crc = calculateCRC(_frame.array, 6);
+  _frame[0] = id;
+  _frame[1] = READ_INPUT_REGISTERS;
+  _frame[2] = adr >> 8;
+  _frame[3] = adr & 0x00FF;
+  _frame[4] = 0x00;
+  _frame[5] = 0x02;
+  uint16_t crc = calculateCRC(_frame, 6);
+  _frame[6] = crc & 0x00FF;
+  _frame[7] = crc >> 8;
   _status = MB_TIMEOUT;
   _hold = hold;
-  _value = 0.0;
+  _value.f = 0.0;
   (*mbm).connect(this);
 }
 
 // read value in defined units
 float modbusSensor::read() {
-  if(_status == MB_TIMEOUT)
+  if (_status == MB_TIMEOUT)
     switch (_hold) {
-    case CHANGE_TO_ZERO: return 0.0;
-    case CHANGE_TO_ONE: return 1.0;
-    case HOLD_VALUE: return _value;
-  }
-  return _value;  
+      case CHANGE_TO_ZERO: return 0.0;
+      case CHANGE_TO_ONE: return 1.0;
+      case HOLD_VALUE: return _value.f;
+    }
+  return _value.f;
 }
 
 // read value as a integer multiplied by factor
 uint16_t modbusSensor::read(uint16_t factor) {
-  if(_status == MB_TIMEOUT)
+  if (_status == MB_TIMEOUT)
     switch (_hold) {
-    case CHANGE_TO_ZERO: return (uint16_t) 0;
-    case CHANGE_TO_ONE: return (uint16_t) factor;
-    case HOLD_VALUE: return (uint16_t)(_value * factor);
-  }
-  return (uint16_t)(_value * factor);  
+      case CHANGE_TO_ZERO: return (uint16_t) 0;
+      case CHANGE_TO_ONE: return (uint16_t) factor;
+      case HOLD_VALUE: return (uint16_t)(_value.f * factor);
+    }
+  return (uint16_t)(_value.f * factor);
 }
 
 // get status of the value
@@ -123,7 +123,7 @@ uint8_t modbusSensor::getStatus() {
 
 // write sensor value
 void modbusSensor::write(float value) {
-  _value = value;
+  _value.f = value;
 }
 
 //  put new status
@@ -133,8 +133,8 @@ uint8_t modbusSensor::putStatus(uint8_t status) {
 }
 
 // get pointer to _poll frame
-pollFrame *modbusSensor::getFramePtr() {
-  return &_frame;
+uint8_t *modbusSensor::getFramePtr() {
+  return _frame;
 }
 
 //---------------------------------------------------------------------------------------//
@@ -186,7 +186,7 @@ boolean modbusMaster::available() {
   switch (_state) {
     case SENDING:
       if (millis() - receiveMillis < WAITING_INTERVAL)
-        return false; 
+        return false;
       if (indexSensor < _totalSensors) {
         _mbSensorPtr = _mbSensorsPtr[indexSensor];
         _framePtr = (*_mbSensorPtr).getFramePtr();
@@ -203,6 +203,7 @@ boolean modbusMaster::available() {
     case RECEIVING:
       if ((*_MBSerial).available()) {
         readBuffer();
+        MODBUS_SERIAL_PRINTLN((*_mbSensorPtr).getStatus(), HEX);
         receiveMillis = millis();
         indexSensor++;
         _state = SENDING;
@@ -225,7 +226,7 @@ boolean modbusMaster::available() {
 }
 
 uint8_t modbusMaster::readBuffer() {
-  uint8_t index;
+  uint8_t index = 0;
   boolean ovfFlag = false;
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT("  SLAVE:");
@@ -240,13 +241,13 @@ uint8_t modbusMaster::readBuffer() {
     else {
       if (index == BUFFER_SIZE) ovfFlag = true;
       _buffer[index] = (*_MBSerial).read();
-//#ifdef MODBUS_SERIAL_OUTPUT
+      //#ifdef MODBUS_SERIAL_OUTPUT
       if (_buffer[index] < 0x10)
         Serial.print(F(" 0"));
       else
         Serial.print(F(" "));
       Serial.print(_buffer[index], HEX);
-//#endif
+      //#endif
       index++;
     }
     // This is not 100% correct but it will suffice.
@@ -257,28 +258,38 @@ uint8_t modbusMaster::readBuffer() {
 
     delayMicroseconds(_T1_5); // inter character time out
   }
-  MODBUS_SERIAL_PRINTLN();
+  MODBUS_SERIAL_PRINT(" ");
+  MODBUS_SERIAL_PRINTLN(millis());
 
   // The minimum buffer size from a slave can be an exception response of 5 bytes.
   // If the buffer was partially filled set a frame_error.
   if (index < 5 || ovfFlag)
     return ((*_mbSensorPtr).putStatus(MB_SLAVE_FAIL));
 
-  if (_buffer[0] != (*_framePtr).id)
+  if (_buffer[0] != _framePtr[0])
     return ((*_mbSensorPtr).putStatus(MB_INVALID_ID));
-
-  if (calculateCRC(_buffer, index - 2) != (*_framePtr).crc)
+  
+  uint16_t crc = calculateCRC(_buffer, index - 2);
+  if (_buffer[index-1] != crc >> 8 && _buffer[index-2] != crc & 0x00FF)
     return ((*_mbSensorPtr).putStatus(MB_INVALID_CRC));
 
   if (_buffer[1] & 0x80 == 0x80) {
+    MODBUS_SERIAL_PRINTLN(_buffer[0], HEX);
+    MODBUS_SERIAL_PRINTLN(_framePtr[0], HEX);
     return ((*_mbSensorPtr).putStatus(_buffer[2])); // see exception codes in define area
   }
-    
+
   switch (_buffer[1]) {
-    case READ_HOLDING_REGISTERS:
+    case READ_INPUT_REGISTERS:
+
       if (_buffer[2] == 4) {
-        float temp = (float)(_buffer[5] << 24 | _buffer[6] << 16 | _buffer[3] << 8 | _buffer[4]);
-        (*_mbSensorPtr).write(temp);
+        dataFloat temp;
+        temp.arr[3] = _buffer[3];
+        temp.arr[2] = _buffer[4];
+        temp.arr[1] = _buffer[5];
+        temp.arr[0] = _buffer[6];
+        MODBUS_SERIAL_PRINTLN(temp.f);
+        (*_mbSensorPtr).write(temp.f);
         return ((*_mbSensorPtr).putStatus(MB_VALID_DATA));
       }
       else
@@ -294,17 +305,18 @@ void modbusMaster::sendFrame() {
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT(F(" MASTER:"));
   for (uint8_t i; i < 8; i++) {
-    (*_MBSerial).write((*_framePtr).array[i]);
+    (*_MBSerial).write(_framePtr[i]);
 #ifdef MODBUS_SERIAL_OUTPUT
-    if ((*_framePtr).array[i] < 0x10)
+    if (_framePtr[i] < 0x10)
       Serial.print(F(" 0"));
     else
       Serial.print(F(" "));
-    Serial.print((*_framePtr).array[i], HEX);
+    Serial.print(_framePtr[i], HEX);
 #endif
   }
   (*_MBSerial).flush();
-  MODBUS_SERIAL_PRINTLN();
+  MODBUS_SERIAL_PRINT("    ");
+  MODBUS_SERIAL_PRINTLN(millis());
   // It may be necessary to add a another character delay T1_5 here to
   // avoid truncating the message on slow and long distance connections
 
