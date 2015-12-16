@@ -91,7 +91,7 @@ modbusSensor::modbusSensor(modbusMaster * mbm, uint8_t id, uint16_t adr, uint8_t
   _status = MB_TIMEOUT;
   _hold = hold;
   _value.f = 0.0;
-  (*mbm).connect(this);
+  (*mbm).connect(this); //No lo habia visto nunca
 }
 
 // read value in defined units
