@@ -1,13 +1,13 @@
 /**********************************************************************
-* ModbusSensor.h
-* create ModbusSensor and ModbusMaster classes to process values from
-* a Eastron SMD120 and family. 
-* 
-* version 0.1 ALPHA 14/12/2015
-* 
-* Author: Jaime García  @peninquen
-* License: Apache License Version 2.0.
-*
+  ModbusSensor.h
+  create ModbusSensor and ModbusMaster classes to process values from
+  a Eastron SMD120 and family.
+
+  version 0.1 ALPHA 14/12/2015
+
+  Author: Jaime García  @peninquen
+  License: Apache License Version 2.0.
+
 **********************************************************************/
 
 #ifndef ModbusSensor_h
@@ -39,6 +39,12 @@ union pollFrame {
   };
 };
 
+union dataFloat {
+  float f;
+  uint8_t arr[4];
+};
+
+
 class modbusSensor {
   public:
     // Constructor
@@ -60,13 +66,13 @@ class modbusSensor {
     uint8_t putStatus(uint8_t status);
 
     // get pointer to _poll frame
-    pollFrame *getFramePtr();
+    uint8_t *getFramePtr();
 
   private:
-    pollFrame _frame;
-    uint8_t   _status;
-    uint8_t   _hold;
-    float     _value;
+    uint8_t     _frame[8];
+    dataFloat   _value;
+    uint8_t     _status;
+    uint8_t     _hold;
 };
 
 class modbusMaster {
@@ -76,13 +82,13 @@ class modbusMaster {
 
     // Connect modbusSensor to modbusMaster array of queries
     boolean connect(modbusSensor *mbs);
-    
-    // begin comunication using ModBus protocol over RS485 
+
+    // begin comunication using ModBus protocol over RS485
     void begin(uint16_t baudrate, uint8_t byteFormat, uint16_t timeOut, uint16_t pollInterval);
 
     // process FSM and check if the array of sensors has been requested
     boolean available();
-  
+
   private:
     void sendFrame();
     uint8_t readBuffer();
@@ -96,7 +102,7 @@ class modbusMaster {
     HardwareSerial  *_MBSerial;
     modbusSensor    *_mbSensorsPtr[MAX_SENSORS]; // array of modbusSensor's pointers
     modbusSensor    *_mbSensorPtr;
-    pollFrame       *_framePtr;
+    uint8_t         *_framePtr;
 };
 
 #endif
