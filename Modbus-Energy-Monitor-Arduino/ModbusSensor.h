@@ -3,7 +3,7 @@
   create ModbusSensor and ModbusMaster classes to process values from
   a Eastron SMD120 and family.
 
-  version 0.1 ALPHA 14/12/2015
+  version 0.1 ALPHA 16/12/2015
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
