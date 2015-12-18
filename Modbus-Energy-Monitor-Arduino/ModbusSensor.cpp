@@ -29,7 +29,8 @@
 #define SEND                1
 #define SENDING             2
 #define RECEIVING           3
-#define WAITING_NEXT_POLL   4
+#define IDLE                4
+#define WAITING_NEXT_POLL   5
 
 #define READ_COIL_STATUS          0x01 // Reads the ON/OFF status of discrete outputs (0X references, coils) in the slave.
 #define READ_INPUT_STATUS         0x02 // Reads the ON/OFF status of discrete inputs (1X references) in the slave.
@@ -186,8 +187,6 @@ boolean modbusMaster::available() {
 //-----------------------------------------------------------------------------
     case SEND:
 
-      if (millis() - receiveMillis < WAITING_INTERVAL)
-        return false;
       if (indexSensor < _totalSensors) {
         _mbSensorPtr = _mbSensorsPtr[indexSensor];
         _framePtr = (*_mbSensorPtr).getFramePtr();
@@ -219,7 +218,7 @@ boolean modbusMaster::available() {
         MODBUS_SERIAL_PRINTLN((*_mbSensorPtr).getStatus(), HEX);        
         indexSensor++;
         receiveMillis = millis();
-        _state = SENDING;
+        _state = IDLE;
       }
       else if (millis() - sendMillis > _timeOut) {
         (*_mbSensorPtr).putStatus(MB_TIMEOUT);
@@ -227,6 +226,10 @@ boolean modbusMaster::available() {
         _state = SENDING;
       }
       return false;
+//-----------------------------------------------------------------------------
+    case IDLE:
+      if (millis() - receiveMillis < WAITING_INTERVAL)
+        return false;
 //-----------------------------------------------------------------------------
     case WAITING_NEXT_POLL:
       nowMillis = millis();
