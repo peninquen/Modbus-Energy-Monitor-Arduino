@@ -27,10 +27,10 @@
 #include "ModbusSensor.h"
 
 // Finite state machine status
-#define STOP      0
-#define SENDING   1
-#define RECEIVING 2
-#define STANDBY   3
+#define STOP                0
+#define SENDING             1
+#define RECEIVING           2
+#define WAITING_NEXT_POLL   3
 
 #define READ_COIL_STATUS          0x01 // Reads the ON/OFF status of discrete outputs (0X references, coils) in the slave.
 #define READ_INPUT_STATUS         0x02 // Reads the ON/OFF status of discrete inputs (1X references) in the slave.
@@ -176,14 +176,16 @@ boolean modbusMaster::available() {
       if (indexSensor < _totalSensors) {
         _mbSensorPtr = _mbSensorsPtr[indexSensor];
         _framePtr = (*_mbSensorPtr).getFramePtr();
+        
         sendFrame();
+        
         sendMillis = millis();
         _state = RECEIVING;
         return false;
       }
       else {
         indexSensor = 0;
-        _state = STANDBY;
+        _state = WAITING_NEXT_POLL;
         return true;
       }
     case RECEIVING:
@@ -198,7 +200,7 @@ boolean modbusMaster::available() {
         _state = SENDING;
       }
       return false;
-    case STANDBY:
+    case WAITING_NEXT_POLL:
       if ((millis() - lastPollMillis) > _pollInterval) {
         lastPollMillis = millis();
         _state = SENDING;
@@ -277,13 +279,12 @@ uint8_t modbusMaster::readBuffer() {
 }
 
 
-
 void modbusMaster::sendFrame() {
   digitalWrite(_TxEnablePin, HIGH);
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT(F(" MASTER:"));
+  (*_MBSerial).write((*_framePtr).array, 8);
   for (uint8_t i; i < 8; i++) {
-    (*_MBSerial).write((*_framePtr).array[i]);
 #ifdef MODBUS_SERIAL_OUTPUT
     if ((*_framePtr).array[i] < 0x10)
       Serial.print(F(" 0"));
@@ -292,7 +293,7 @@ void modbusMaster::sendFrame() {
     Serial.print((*_framePtr).array[i], HEX);
 #endif
   }
-  (*_MBSerial).flush();
+//  (*_MBSerial).flush();
   MODBUS_SERIAL_PRINTLN();
   
   //  Cuánto tiempo mantenemos activo el pin de comuniciones?
