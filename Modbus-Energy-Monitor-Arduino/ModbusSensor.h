@@ -3,7 +3,7 @@
   create ModbusSensor and ModbusMaster classes to process values from
   a Eastron SMD120 and family.
 
-  version 0.2 BETA 18/12/2015
+  version 0.3 BETA 20/12/2015
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -29,23 +29,12 @@
 
 class modbusMaster;
 
-union pollFrame {
-  uint8_t    array[8];
-  struct {
-    uint8_t  id;
-    uint8_t  fc;
-    uint16_t address;
-    uint16_t data;
-    uint16_t crc;
-  };
-};
-
 union dataFloat {
   float f;
   uint8_t arr[4];
 };
 
-
+//------------------------------------------------------------------------------
 class modbusSensor {
   public:
     // Constructor
@@ -58,16 +47,16 @@ class modbusSensor {
     uint16_t read(uint16_t factor);
 
     // get status of the value
-    uint8_t getStatus();
+    inline uint8_t getStatus();
 
     // write sensor value
-    void write(float value);
+    inline void write(float value);
 
-    //  change status
-    uint8_t putStatus(uint8_t status);
+    //  change status, return new status
+    inline uint8_t putStatus(uint8_t status);
 
     // get pointer to _poll frame
-    uint8_t *getFramePtr();
+    inline uint8_t *getFramePtr();
 
   private:
     uint8_t     _frame[8];
@@ -76,23 +65,27 @@ class modbusSensor {
     uint8_t     _hold;
 };
 
+//------------------------------------------------------------------------------
 class modbusMaster {
   public:
     //constructor
     modbusMaster(HardwareSerial *MBSerial, uint8_t TxEnPin);
 
     // Connect modbusSensor to modbusMaster array of queries
-    uint8_t connect(modbusSensor *mbs);
+    void connect(modbusSensor *mbs);
 
-    // begin comunication using ModBus protocol over RS485
+    // begin communication using ModBus protocol over RS485
     void begin(uint16_t baudrate, uint8_t byteFormat, uint16_t timeOut, uint16_t pollInterval);
+
+    // end coummunication over serial port
+    void end();
 
     // Finite State Machine core, process FSM and check if the array of sensors has been requested
     boolean available();
 
   private:
-    void sendFrame();
-    uint8_t readBuffer();
+    inline void sendFrame();
+    inline void readBuffer(uint8_t frameSize);
     uint8_t  _state;                    // Modbus FSM status (SENDING, RECEIVING, STANDBY, WAINTING_NEXT_POLL)
     uint8_t  _TxEnablePin;              // pin to enable transmision in MAX485
     uint8_t  _totalSensors;             // constant, max number of sensors to poll
