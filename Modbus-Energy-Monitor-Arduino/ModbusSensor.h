@@ -3,7 +3,7 @@
   create ModbusSensor and ModbusMaster classes to process values from
   a Eastron SMD120 and family.
 
-  version 0.1 ALPHA 16/12/2015
+  version 0.2 BETA 18/12/2015
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -19,7 +19,8 @@
 // The serial buffer limits this to 128 bytes.
 // We can reduce it to maximum data sending by a slave SMD120 9 bytes, SMD 630 is 85 bytes
 // Three phase meters are 3 values, 6 registers and 12 bytes, plus 5 frame bytes, total 17
-#define BUFFER_SIZE 32
+#define BUFFER_SIZE      32
+#define WAITING_INTERVAL 30
 
 // What happens when _status is diferent to MB_VALID_DATA?
 #define CHANGE_TO_ZERO 0x00
@@ -81,24 +82,26 @@ class modbusMaster {
     modbusMaster(HardwareSerial *MBSerial, uint8_t TxEnPin);
 
     // Connect modbusSensor to modbusMaster array of queries
-    boolean connect(modbusSensor *mbs);
+    uint8_t connect(modbusSensor *mbs);
 
     // begin comunication using ModBus protocol over RS485
     void begin(uint16_t baudrate, uint8_t byteFormat, uint16_t timeOut, uint16_t pollInterval);
 
-    // process FSM and check if the array of sensors has been requested
+    // Finite State Machine core, process FSM and check if the array of sensors has been requested
     boolean available();
 
   private:
     void sendFrame();
     uint8_t readBuffer();
-    uint8_t  _state;                    // Modbus FSM status (SENDING, RECEIVING, STANDBY, STOP)
+    uint8_t  _state;                    // Modbus FSM status (SENDING, RECEIVING, STANDBY, WAINTING_NEXT_POLL)
     uint8_t  _TxEnablePin;              // pin to enable transmision in MAX485
     uint8_t  _totalSensors;             // constant, max number of sensors to poll
     uint16_t _timeOut;                  // constant, time since lastMillis to fail poll
     uint16_t _pollInterval;             // constant, time between polling same data
-    uint16_t _T1_5;                     // inter-character time in microseconds
+//    uint16_t _T1_5;                     // inter-character time in microseconds
     uint8_t  _buffer[BUFFER_SIZE];      // buffer to process rececived frame
+    uint8_t  _availableSensors;         // number of refreshed sensors, decrement when read, increment when write
+    uint16_t _availableSensorsFlag;     // array of flags to register new available sensor values
     HardwareSerial  *_MBSerial;
     modbusSensor    *_mbSensorsPtr[MAX_SENSORS]; // array of modbusSensor's pointers
     modbusSensor    *_mbSensorPtr;

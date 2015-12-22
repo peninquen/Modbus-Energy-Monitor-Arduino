@@ -1,13 +1,12 @@
 /**********************************************************************
-  ModbusSensor.cpp
-  create ModbusSensor and ModbusMaster classes to process values from
-  a Eastron SMD120 and energy monitor family.
-
-  version 0.1 ALPHA 14/12/2015
-
-  Author: Jaime García  @peninquen
-  License: Apache License Version 2.0.
-
+* ModbusSensor class
+* A class to collect data from a Modbus energy monitor
+*
+* version 0.2 BETA 18/12/2015
+*
+* Author: Jaime García  @peninquen
+* License: Apache License Version 2.0.
+*
 **********************************************************************/
 //------------------------------------------------------------------------------
 
@@ -23,17 +22,15 @@
 #define MODBUS_SERIAL_PRINTLN(...)
 #endif
 
-
-
 #include "ModbusSensor.h"
 
 // Finite state machine status
-#define STOP      0
-#define SENDING   1
-#define RECEIVING 2
-#define STANDBY   3
-
-#define WAITING_INTERVAL 10
+#define STOP                0
+#define SEND                1
+#define SENDING             2
+#define RECEIVING           3
+#define IDLE                4
+#define WAITING_NEXT_POLL   5
 
 #define READ_COIL_STATUS          0x01 // Reads the ON/OFF status of discrete outputs (0X references, coils) in the slave.
 #define READ_INPUT_STATUS         0x02 // Reads the ON/OFF status of discrete inputs (1X references) in the slave.
@@ -42,21 +39,23 @@
 #define FORCE_MULTIPLE_COILS      0x0F // Forces each coil (0X reference) in a sequence of coils to either ON or OFF.
 #define PRESET_MULTIPLE_REGISTERS 0x10 // Presets values into a sequence of holding registers (4X references).
 
-#define MB_VALID_DATA     0x00  // ok
-#define MB_INVALID_ID     0xE0  // id received don't match
-#define MB_INVALID_FC     0xE1  // function code don't match
-#define MB_TIMEOUT        0xE2  // slave don't respond ¿maybe off?
-#define MB_INVALID_CRC    0xE3  // calculated CRC don't match with recived CRC
-#define MB_INVALID_BUFF   0xE4  // corrupted frame or overflow
-#define MB_ILLEGAL_FC     0x01  // The function code is not supported by the product
-#define MB_ILLEGAL_ADR    0x02  // Attempt to access an invalid address or an attempt to read or write part of a floating point value
-#define MB_ILLEGAL_DATA   0x03  // Attempt to set a floating point variable to an invalid value
-#define MB_SLAVE_FAIL     0x05  // An error occurred when the instrument attempted to store an update to it’s configuration
+#define MB_VALID_DATA     0x00
+#define MB_INVALID_ID     0xE0
+#define MB_INVALID_FC     0xE1
+#define MB_TIMEOUT        0xE2
+#define MB_INVALID_CRC    0xE3
+#define MB_INVALID_BUFF   0xE4
+#define MB_ILLEGAL_FC     0x01
+#define MB_ILLEGAL_ADR    0x02
+#define MB_ILLEGAL_DATA   0x03
+#define MB_SLAVE_FAIL     0x04
+#define MB_EXCEPTION      0x05
 
-// What happens when _status is diferent to MB_VALID_DATA?
-#define CHANGE_TO_ZERO 0x00
-#define CHANGE_TO_ONE  0x01
-#define HOLD_VALUE     0xFF
+// when _status diferent to MB_VALID_DATA change to zero or hold value?
+#define CHANGE_TO_ZERO    0x00
+#define CHANGE_TO_ONE     0x01
+#define HOLD_VALUE        0xFF
+
 
 uint16_t calculateCRC(uint8_t *array, uint8_t num) {
   uint16_t temp, temp2, flag;
@@ -96,6 +95,7 @@ modbusSensor::modbusSensor(modbusMaster * mbm, uint8_t id, uint16_t adr, uint8_t
 
 // read value in defined units
 float modbusSensor::read() {
+
   if (_status == MB_TIMEOUT)
     switch (_hold) {
       case CHANGE_TO_ZERO: return 0.0;
@@ -107,6 +107,7 @@ float modbusSensor::read() {
 
 // read value as a integer multiplied by factor
 uint16_t modbusSensor::read(uint16_t factor) {
+ 
   if (_status == MB_TIMEOUT)
     switch (_hold) {
       case CHANGE_TO_ZERO: return (uint16_t) 0;
@@ -115,7 +116,6 @@ uint16_t modbusSensor::read(uint16_t factor) {
     }
   return (uint16_t)(_value.f * factor);
 }
-
 // get status of the value
 uint8_t modbusSensor::getStatus() {
   return _status;
@@ -146,68 +146,79 @@ modbusMaster::modbusMaster(HardwareSerial * MBSerial, uint8_t TxEnPin) {
   pinMode(_TxEnablePin, OUTPUT);
   _MBSerial = MBSerial;
   _totalSensors = 0;
-  for (uint8_t i = 0; i < MAX_SENSORS; i++) {
-    _mbSensorsPtr[i] = 0;
-  }
+  for (uint8_t i = 0; i < MAX_SENSORS; i++)
+    _mbSensorsPtr[i] = 0; 
 }
 
 // Connect modbusSensor to modbusMaster array of queries
-boolean modbusMaster::connect(modbusSensor * mbs) {
+uint8_t modbusMaster::connect(modbusSensor * mbs) {
   if (_totalSensors < MAX_SENSORS) {
     _mbSensorsPtr[_totalSensors] = mbs;
     _totalSensors++;
-    return true;
+    return (_totalSensors - 1);
   }
-  else return false;
+  else return 0xFF;
 }
 
 // begin comunication using ModBus protocol over RS485
 void modbusMaster::begin(uint16_t baudrate, uint8_t byteFormat, uint16_t timeOut, uint16_t pollInterval) {
   _timeOut = timeOut;
-  _pollInterval = pollInterval - 1; // reduce 1 to compensate proccess delays
-  if (baudrate > 19200)
+  _pollInterval = pollInterval;
+/*  if (baudrate > 19200)
     _T1_5 = 750;
   else
-    _T1_5 = 16500000 / baudrate; // 1T * 1.5 = T1.5
+    _T1_5 = 16500000 / baudrate; // 1T * 1.5 = T1.5 */
   (*_MBSerial).begin(baudrate, byteFormat);
   _state = SENDING;
   digitalWrite(_TxEnablePin, LOW);
 }
 
-// process FSM and check if the array of sensors has been requested and processed
+// Finite State Machine core, return number of sensors available with a new value 
+
 boolean modbusMaster::available() {
-  static uint8_t  indexSensor = 0;                 // index of arrry of sensors
-  static uint32_t nowMillis = millis();
-  static uint32_t lastPollMillis = nowMillis;      // time to check poll interval
-  static uint32_t sendMillis = nowMillis;          // time to check timeout interval
-  static uint32_t receiveMillis = 0;
-  //  static uint32_t offlineMillis = nowMillis;   // time to check offline interval
-//  static uint8_t  lastStatus = MB_TIMEOUT;         // ¿offline?
+  static uint8_t  indexSensor = 0;                // index of arrray of sensors
+  static uint32_t nowMillis = millis();           
+  static uint32_t lastPollMillis = nowMillis;     // time to check poll interval
+  static uint32_t sendMillis = nowMillis;         // time to check timeout interval
+  static uint32_t receiveMillis = nowMillis;      // time to check waiting interval
+//  static uint8_t  lastStatus = MB_TIMEOUT;        // 
 
   switch (_state) {
-    case SENDING:
-      if (millis() - receiveMillis < WAITING_INTERVAL)
-        return false;
+//-----------------------------------------------------------------------------
+    case SEND:
+
       if (indexSensor < _totalSensors) {
         _mbSensorPtr = _mbSensorsPtr[indexSensor];
         _framePtr = (*_mbSensorPtr).getFramePtr();
-        sendFrame();
+        digitalWrite(_TxEnablePin, HIGH);
         sendMillis = millis();
-        _state = RECEIVING;
+        sendFrame();
+
+        _state = SENDING;
         return false;
       }
       else {
         indexSensor = 0;
-        _state = STANDBY;
+        _state = WAITING_NEXT_POLL;
         return true;
       }
+//-----------------------------------------------------------------------------
+    case SENDING:
+      if (!(*_MBSerial).availableForWrite()) {
+        digitalWrite(_TxEnablePin, LOW);
+        _state = RECEIVING;
+        return false;
+      }
+//-----------------------------------------------------------------------------
     case RECEIVING:
-      if ((*_MBSerial).available()) {
+      if ((*_MBSerial).available() > 8) {
+        
         readBuffer();
-        MODBUS_SERIAL_PRINTLN((*_mbSensorPtr).getStatus(), HEX);
-        receiveMillis = millis();
+
+        MODBUS_SERIAL_PRINTLN((*_mbSensorPtr).getStatus(), HEX);        
         indexSensor++;
-        _state = SENDING;
+        receiveMillis = millis();
+        _state = IDLE;
       }
       else if (millis() - sendMillis > _timeOut) {
         (*_mbSensorPtr).putStatus(MB_TIMEOUT);
@@ -215,13 +226,19 @@ boolean modbusMaster::available() {
         _state = SENDING;
       }
       return false;
-    case STANDBY:
+//-----------------------------------------------------------------------------
+    case IDLE:
+      if (millis() - receiveMillis < WAITING_INTERVAL)
+        return false;
+//-----------------------------------------------------------------------------
+    case WAITING_NEXT_POLL:
       nowMillis = millis();
-      if (nowMillis - lastPollMillis > _pollInterval) {
+      if ((nowMillis - lastPollMillis) > _pollInterval) {
         lastPollMillis = nowMillis;
         _state = SENDING;
       }
       return false;
+//-----------------------------------------------------------------------------
     case STOP: // do nothing
       return false;
   }
@@ -258,7 +275,7 @@ uint8_t modbusMaster::readBuffer() {
     // If there are more bytes after such a delay it is not supposed to
     // be received and thus will force a frame_error.
 
-    delayMicroseconds(_T1_5); // inter character time out
+//    delayMicroseconds(_T1_5); // inter character time out
   }
   MODBUS_SERIAL_PRINT(" ");
   MODBUS_SERIAL_PRINTLN(millis());
@@ -302,25 +319,21 @@ uint8_t modbusMaster::readBuffer() {
   }
 }
 
+
 void modbusMaster::sendFrame() {
-  digitalWrite(_TxEnablePin, HIGH);
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT(F(" MASTER:"));
-  for (uint8_t i; i < 8; i++) {
-    (*_MBSerial).write(_framePtr[i]);
+  (*_MBSerial).write(_framePtr, 8);
 #ifdef MODBUS_SERIAL_OUTPUT
+  for (uint8_t i; i < 8; i++) {
     if (_framePtr[i] < 0x10)
       Serial.print(F(" 0"));
     else
       Serial.print(F(" "));
     Serial.print(_framePtr[i], HEX);
-#endif
   }
-  (*_MBSerial).flush();
+#endif
   MODBUS_SERIAL_PRINT("    ");
   MODBUS_SERIAL_PRINTLN(millis());
-  // It may be necessary to add a another character delay T1_5 here to
-  // avoid truncating the message on slow and long distance connections
 
-  digitalWrite(_TxEnablePin, LOW);
 }
