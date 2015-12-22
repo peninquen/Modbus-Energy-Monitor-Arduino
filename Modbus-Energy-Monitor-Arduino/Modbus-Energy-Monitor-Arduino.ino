@@ -1,4 +1,12 @@
 /**********************************************************************
+  ModbusEnergyMonitor example
+  An example to collect data from a Modbus energy monitor using ModbusSensor class
+  to datalogger, include a RTC DS3231 and a SD card
+  version 0.3 BETA 22/12/2015
+
+  Author: Jaime García  @peninquen
+  License: Apache License Version 2.0.
+
 **********************************************************************/
 /*
 
