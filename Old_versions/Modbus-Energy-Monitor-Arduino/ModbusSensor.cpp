@@ -2,7 +2,7 @@
   ModbusSensor class
   A class to collect data from a Modbus energy monitor model SDM120 and family
 
-  version 0.4 BETA 31/12/2015
+  version 0.3 BETA 22/12/2015
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -88,9 +88,9 @@ modbusSensor::modbusSensor(modbusMaster * mbm, uint8_t id, uint16_t adr, uint8_t
   _value.f = 0.0;
   (*mbm).connect(this);
 }
-
-// Constructor
-modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
+/*
+  // Constructor
+  modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
   _frame[0] = id;
   _frame[1] = READ_INPUT_REGISTERS;
   _frame[2] = adr >> 8;
@@ -104,12 +104,9 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
   _hold = hold;
   _value.f = 0.0;
   MBSerial.connect(this);
-}
+  }*/
 
-// Destructor
-modbusSensor::~modbusSensor() {
-  MBSerial.disconnect(this);
-}
+
 
 // read value in defined units
 float modbusSensor::read() {
@@ -133,7 +130,7 @@ uint16_t modbusSensor::read(uint16_t factor) {
   return (uint16_t)(_value.f * factor);
 }
 // get status of the value
-/*inline*/ uint8_t modbusSensor::getStatus() {
+inline uint8_t modbusSensor::getStatus() {
   return _status;
 }
 
@@ -143,26 +140,25 @@ inline void modbusSensor::write(float value) {
 }
 
 //  put new status
-/*inline*/ uint8_t modbusSensor::putStatus(uint8_t status) {
+inline uint8_t modbusSensor::putStatus(uint8_t status) {
   _status = status;
   return _status;
 }
 
 // get pointer to _poll frame
-/*inline*/ uint8_t *modbusSensor::getFramePtr() {
+inline uint8_t *modbusSensor::getFramePtr() {
   return _frame;
 }
 
 //---------------------------------------------------------------------------------------//
 //---------------------------------------------------------------------------------------//
 
-//configure object and conections
-void modbusMaster::config(HardwareSerial * hwSerial, uint8_t TxEnPin, uint16_t pollInterval) {
+//constructor
+modbusMaster::modbusMaster(HardwareSerial * hwSerial, uint8_t TxEnPin) {
   _state = STOP;
   _TxEnablePin = TxEnPin;
   pinMode(_TxEnablePin, OUTPUT);
-  _hwSerial = hwSerial;
-  _pollInterval = pollInterval - 1;
+  _MBSerial = hwSerial;
   _totalSensors = 0;
   for (uint8_t i = 0; i < MAX_SENSORS; i++)
     _mbSensorsPtr[i] = 0;
@@ -181,9 +177,10 @@ void modbusMaster::connect(modbusSensor * mbSensor) {
 //------------------------------------------------------------------------------
 // Disconnect a modbusSensor to the modbusMaster array of queries
 void modbusMaster::disconnect(modbusSensor * mbSensor) {
-  for (uint8_t i = 0;   i < _totalSensors; i++) {
+  uint8_t i, j;
+  for (i = 0;   i < _totalSensors; i++) {
     if (_mbSensorsPtr[i] == mbSensor)  {
-      for (uint8_t j = i; j < _totalSensors - 1; j++) {
+      for (j = i; j < _totalSensors - 1; j++) {
         _mbSensorsPtr[j] = _mbSensorsPtr[j + 1];
       }
       _totalSensors--;
@@ -194,7 +191,8 @@ void modbusMaster::disconnect(modbusSensor * mbSensor) {
 
 //------------------------------------------------------------------------------
 // begin communication using ModBus protocol over RS485
-void modbusMaster::begin(uint16_t baudrate, uint8_t byteFormat) {
+void modbusMaster::begin(uint16_t baudrate, uint8_t byteFormat, uint16_t pollInterval) {
+  _pollInterval = pollInterval - 1;
   if (baudrate > 19200)
     _T2_5 = 1250;
   //_T3_5 = 1750; _T1_5 = 750;
@@ -202,7 +200,7 @@ void modbusMaster::begin(uint16_t baudrate, uint8_t byteFormat) {
     _T2_5 = 27500000 / baudrate; // 2400 bauds --> 11458 us; 9600 bauds --> 2864 us
   //_T3_5 = 38500000 / baudrate; // number of bits 11 * 3.5 =
   //_T1_5 = 16500000 / baudrate; // 1T * 1.5 = T1.5
-  (*_hwSerial).begin(baudrate, byteFormat);
+  (*_MBSerial).begin(baudrate, byteFormat);
   _state = SEND;
   digitalWrite(_TxEnablePin, LOW);
 }
@@ -211,8 +209,7 @@ void modbusMaster::begin(uint16_t baudrate, uint8_t byteFormat) {
 // end communication over serial port
 inline void modbusMaster::end() {
   _state = STOP;
-  (*_hwSerial).end();
-  digitalWrite(_TxEnablePin, LOW);
+  (*_MBSerial).end();
 }
 
 //------------------------------------------------------------------------------
@@ -224,7 +221,7 @@ boolean modbusMaster::available() {
   static uint32_t nowMillis = millis();
   static uint32_t lastPollMillis = nowMillis;     // time to check poll interval
   static uint32_t sendMillis = nowMillis;         // time to check timeout interval
-  static uint32_t receivedMillis = nowMillis;      // time to check waiting interval
+  static uint32_t receiveMillis = nowMillis;      // time to check waiting interval
 
   switch (_state) {
     //-----------------------------------------------------------------------------
@@ -248,11 +245,11 @@ boolean modbusMaster::available() {
     //-----------------------------------------------------------------------------
     case SENDING:
 
-      if ((*_hwSerial).availableForWrite() == SERIAL_TX_BUFFER_SIZE - 1) { //TX buffer empty
+      if ((*_MBSerial).availableForWrite() == SERIAL_TX_BUFFER_SIZE - 1) { //TX buffer empty
         delayMicroseconds(_T2_5); // time to be sure last byte sended
-        while ((*_hwSerial).available()) (*_hwSerial).read(); // clean RX buffer
+        while ((*_MBSerial).available()) (*_MBSerial).read(); // clean RX buffer
         digitalWrite(_TxEnablePin, LOW);
-        sendMillis = millis(); //starts  slave timeOut
+        sendMillis = millis(); //starts  slave's timeOut
         _state = RECEIVING;
         frameSize = 0;
       }
@@ -261,7 +258,7 @@ boolean modbusMaster::available() {
     //-----------------------------------------------------------------------------
     case RECEIVING:
 
-      if (!(*_hwSerial).available()) {
+      if (!(*_MBSerial).available()) {
         if (millis() - sendMillis > TIMEOUT) {
           (*_mbSensorPtr).putStatus(MB_TIMEOUT);
           indexSensor++;
@@ -270,16 +267,16 @@ boolean modbusMaster::available() {
         return false;
       }
 
-      if ((*_hwSerial).available() > frameSize) {
+      if ((*_MBSerial).available() > frameSize) {
         frameSize++;
         tMicros = micros();
       }
       else {
-        if (micros() - tMicros > _T2_5) { // inter-character time exceeded
+        if (micros() - tMicros > _T2_5) {
           readBuffer(frameSize);
           MODBUS_SERIAL_PRINTLN((*_mbSensorPtr).getStatus(), HEX);
           indexSensor++;
-          receivedMillis = millis(); //starts waiting interval to next request
+          receiveMillis = millis(); //starts waiting interval to next request
           _state = IDLE;
         }
       }
@@ -287,7 +284,7 @@ boolean modbusMaster::available() {
 
     //-----------------------------------------------------------------------------
     case IDLE:
-      if (millis() - receivedMillis > WAITING_INTERVAL)
+      if (millis() - receiveMillis > WAITING_INTERVAL)
         _state = SEND;
       return false;
 
@@ -309,13 +306,13 @@ boolean modbusMaster::available() {
 }
 
 //-----------------------------------------------------------------------------
-/*inline*/ void modbusMaster::readBuffer(uint8_t frameSize) {
+inline void modbusMaster::readBuffer(uint8_t frameSize) {
   uint8_t index = 0;
   //  boolean ovfFlag = false;
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT("  SLAVE:");
   for (index = 0; index < frameSize; index++) {
-    _buffer[index] = (*_hwSerial).read();
+    _buffer[index] = (*_MBSerial).read();
 #ifdef MODBUS_SERIAL_OUTPUT
     if (_buffer[index] < 0x10)
       Serial.print(F(" 0"));
@@ -379,33 +376,11 @@ boolean modbusMaster::available() {
 
 //-----------------------------------------------------------------------------
 //
-/*inline*/ void modbusMaster::sendFrame(uint8_t frameSize) {
+inline void modbusMaster::sendFrame() {
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT(F(" MASTER:"));
 
-  (*_hwSerial).write(_framePtr, frameSize);
-
-#ifdef MODBUS_SERIAL_OUTPUT
-  for (uint8_t i = 0; i < frameSize; i++) {
-    if (_framePtr[i] < 0x10)
-      Serial.print(F(" 0"));
-    else
-      Serial.print(F(" "));
-    Serial.print(_framePtr[i], HEX);
-  }
-#endif
-  MODBUS_SERIAL_PRINT("    ");
-  MODBUS_SERIAL_PRINTLN(millis());
-
-}
-
-//-----------------------------------------------------------------------------
-//
-/*inline*/ void modbusMaster::sendFrame() {
-  MODBUS_SERIAL_PRINT(millis());
-  MODBUS_SERIAL_PRINT(F(" MASTER:"));
-
-  (*_hwSerial).write(_framePtr, 8);
+  (*_MBSerial).write(_framePtr, 8);
 
 #ifdef MODBUS_SERIAL_OUTPUT
   for (uint8_t i = 0; i < 8; i++) {
@@ -420,7 +395,4 @@ boolean modbusMaster::available() {
   MODBUS_SERIAL_PRINTLN(millis());
 
 }
-
-//predefined instance to poll, collect a process values from modbus protocol
-modbusMaster MBSerial;
 

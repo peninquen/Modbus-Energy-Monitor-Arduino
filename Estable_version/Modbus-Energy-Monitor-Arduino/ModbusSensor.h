@@ -39,43 +39,6 @@ union dataFloat {
 };
 
 //------------------------------------------------------------------------------
-class modbusFrame {
-  private:
-    uint8_t     _frame[8];
-    uint8_t     _status;
-
-  public:
-    // Constructor
-    modbusFrame(modbusMaster *mbm, uint8_t id, uint8_t fc, uint16_t adr);
-
-    // Constructor
-    modbusFrame(uint8_t id, uint8_t fc, uint16_t adr);
-
-    // Destructor, remember disconnect object before leaving the scope, no automatic feature except for MBSerial
-    ~modbusFrame();
-
-    // read value in defined units
-    //float read();
-
-    // read value as an integer multiplied by factor
-    //uint16_t read(uint16_t factor);
-
-    // get status of the value
-    /*inline*/ uint8_t getStatus();
-
-    // write sensor value
-    //inline void write(float value);
-
-    //  change status, return new status
-    /*inline*/ uint8_t putStatus(uint8_t status);
-
-    // get pointer to _poll frame
-    /*inline*/ uint8_t *getFramePtr();
-
-};
-
-
-//------------------------------------------------------------------------------
 class modbusSensor {
   public:
     // Constructor
@@ -104,12 +67,12 @@ class modbusSensor {
 
     // get pointer to _poll frame
     /*inline*/ uint8_t *getFramePtr();
-    
+
   private:
     uint8_t     _frame[8];
+    dataFloat   _value;
     uint8_t     _status;
     uint8_t     _hold;
-    dataFloat   _value;
 };
 
 //------------------------------------------------------------------------------
@@ -136,7 +99,7 @@ class modbusMaster {
     // Finite State Machine core, process FSM and check if the array of sensors has been requested
     boolean available();
 
-  protected:
+  private:
     /*inline*/ void sendFrame(uint8_t frameSize);
     /*inline*/ void sendFrame();    
     /*inline*/ void readBuffer(uint8_t frameSize);
@@ -146,6 +109,8 @@ class modbusMaster {
     uint16_t _pollInterval;             // constant, time between polling same data
     uint32_t _T2_5;                     // time between characters in a frame, in microseconds
     uint8_t  _buffer[BUFFER_SIZE];      // buffer to process rececived frame
+    //    uint8_t  _availableSensors;         // number of refreshed sensors, decrement when read, increment when write
+    //    uint16_t _availableSensorsFlag;     // array of flags to register new available sensor values
     HardwareSerial  *_hwSerial;
     modbusSensor    *_mbSensorsPtr[MAX_SENSORS]; // array of modbusSensor's pointers
     modbusSensor    *_mbSensorPtr;
