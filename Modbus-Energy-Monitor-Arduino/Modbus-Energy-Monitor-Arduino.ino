@@ -2,7 +2,7 @@
   ModbusEnergyMonitor example
   An example to collect data from a Modbus energy monitor using ModbusSensor class
   to datalogger, include a RTC DS3231 and a SD card
-  version 0.5 BETA 3/01/2016
+  version 0.5 BETA 4/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -26,7 +26,7 @@ struct three_phase {
   float line3, line2, line1;
 } voltage, current, power;
 
-float energy;
+float energy = 0.0;
 
 // global variables to poll, process and send values
 

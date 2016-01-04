@@ -2,7 +2,7 @@
   ModbusSensor class
   A class to collect data from a Modbus energy monitor model SDM120 and family
 
-  version 0.5 BETA 3/01/2016
+  version 0.5 BETA 4/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -10,7 +10,7 @@
 *******************************************************************************/
 //------------------------------------------------------------------------------
 
-//#define MODBUS_SERIAL_OUTPUT  //Verbose MODBUS messages and timing
+#define MODBUS_SERIAL_OUTPUT  //Verbose MODBUS messages and timing
 
 #ifdef MODBUS_SERIAL_OUTPUT
 #define MODBUS_SERIAL_BEGIN(...) Serial.begin(__VA_ARGS__)
@@ -38,24 +38,26 @@
   #define READ_INPUT_REGISTERS      0x04 // Reads the binary contents of input registers (3X references) in the slave. Not writable.
   #define FORCE_MULTIPLE_COILS      0x0F // Forces each coil (0X reference) in a sequence of coils to either ON or OFF.
   #define PRESET_MULTIPLE_REGISTERS 0x10 // Presets values into a sequence of holding registers (4X references).
+
+  #define MB_VALID_DATA     0x00
+  #define MB_INVALID_ID     0xE0
+  #define MB_INVALID_FC     0xE1
+  #define MB_TIMEOUT        0xE2
+  #define MB_INVALID_CRC    0xE3
+  #define MB_INVALID_BUFF   0xE4
+  #define MB_INVALID_ADR    0xE5
+  #define MB_INVALID_DATA   0xE6
+  #define MB_ILLEGAL_FC     0x01
+  #define MB_ILLEGAL_ADR    0x02
+  #define MB_ILLEGAL_DATA   0x03
+  #define MB_SLAVE_FAIL     0x04
+  #define MB_EXCEPTION      0x05
+
+  // when _status is diferent to MB_VALID_DATA change it to zero or hold last valid value?
+  #define CHANGE_TO_ZERO    0x00
+  #define CHANGE_TO_ONE     0x01
+  #define HOLD_VALUE        0xFF
 */
-#define MB_VALID_DATA     0x00
-#define MB_INVALID_ID     0xE0
-#define MB_INVALID_FC     0xE1
-#define MB_TIMEOUT        0xE2
-#define MB_INVALID_CRC    0xE3
-#define MB_INVALID_BUFF   0xE4
-#define MB_ILLEGAL_FC     0x01
-#define MB_ILLEGAL_ADR    0x02
-#define MB_ILLEGAL_DATA   0x03
-#define MB_SLAVE_FAIL     0x04
-#define MB_EXCEPTION      0x05
-
-// when _status is diferent to MB_VALID_DATA change it to zero or hold last valid value?
-//#define CHANGE_TO_ZERO    0x00
-//#define CHANGE_TO_ONE     0x01
-//#define HOLD_VALUE        0xFF
-
 
 uint16_t calculateCRC(uint8_t *array, uint8_t num) {
   uint16_t temp, flag;
@@ -116,18 +118,31 @@ modbusSensor::modbusSensor(uint8_t id, uint8_t fc, uint16_t adr, uint8_t hold, u
   _value = new uint8_t[sizeofValue];
   uint8_t *ptr = _value;
   for (int count = sizeofValue; count; --count) *ptr++ = 0;
+  switch (fc) {
+    case PRESET_MULTIPLE_REGISTERS:
+    case READ_HOLDING_REGISTERS:
+      _frame = new uint8_t[9 + sizeofValue]; // reserve space for fc PRESET_MULTIPLE_REGISTERS
+      _frame[1] = READ_HOLDING_REGISTERS;
+      break;
 
-  if (fc == READ_INPUT_REGISTERS)        _frame = new uint8_t[8];
-  else if (fc == READ_HOLDING_REGISTERS) _frame = new uint8_t[9 + sizeofValue]; // reserve space for fc PRESET_MULTIPLE_REGISTERS
+    case READ_INPUT_REGISTERS:
+      _frame = new uint8_t[8];
+      _frame[1] = READ_INPUT_REGISTERS;
+      break;
 
+    default:
+      _frame = 0;
+      _frameSize = 0;
+      _status = MB_INVALID_FC;
+      return;
+  }
   _frameSize = 8;
   _frame[0] = id;
-  _frame[1] = fc;
   _frame[2] = adr >> 8;
   _frame[3] = adr & 0x00FF;
   _frame[4] = 0x00;
   _frame[5] = sizeofValue / 2;
-  uint16_t crc = calculateCRC(_frame, _frameSize - 2);
+  uint16_t crc = calculateCRC(_frame, 6);
   _frame[6] = crc & 0x00FF;
   _frame[7] = crc >> 8;
 
@@ -147,22 +162,31 @@ float modbusSensor::read() {
   return (float) * _value;
 }
 
-// Preset sensor value, fc 0x10, only holding registers defined with fc 0x03
-void modbusSensor::preset(uint8_t *newValue) {
-
-}
-
-
-/*void modbusSensor::write(template< typedef T > const T &value) {
-  modbusSensor parameter(_frame[0], _frame[1], (uint16)(_frame[3] || _frame[2] << 8), _hold, const T & value);
-  MBserial.
-  if (fc == PRESET_MULTIPLE_REGISTERS) {
-    const uint8_t * ptr = _value + sizeofValue - 1; // object last byte
-    for (int i = 7; i < 7 + sizeofValue; i++, ptr--) _frame[i] = *ptr;
+void modbusSensor::processPreset(const uint8_t *ptr, uint8_t objectSize) {
+  if (_frame[2] == READ_INPUT_REGISTERS) {
+    _status = MB_INVALID_ADR;
+    return;
   }
-
-  while (!
-  }*/
+  if (objectSize != _frame[5] * 2) {
+    _status = MB_INVALID_DATA;
+    return;
+  }
+  _frame[2] = PRESET_MULTIPLE_REGISTERS;
+  _frame[6] = objectSize;
+  uint8_t i = 6;
+  for (int count = objectSize; count; count--, i++) _frame[i] = *ptr--;
+  uint16_t crc = calculateCRC(_frame, i);
+  _frame[i++] = crc & 0x00FF;
+  _frame[i++] = crc >> 8;
+  _frameSize = i;
+  while (!MBSerial.available()) {}
+  _frame[2] = READ_HOLDING_REGISTERS;
+  crc = calculateCRC(_frame, 6);
+  _frame[6] = crc & 0x00FF;
+  _frame[7] = crc >> 8;
+  _frameSize = 8;
+  return;
+}
 
 //Process RX buffer
 void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
@@ -231,7 +255,7 @@ void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
   (*hwSerial).write(_frame, _frameSize);
 
 #ifdef MODBUS_SERIAL_OUTPUT
-  for (uint8_t i = 0; i < frameSize; i++) {
+  for (uint8_t i = 0; i < _frameSize; i++) {
     if (_frame[i] < 0x10)
       Serial.print(F(" 0"));
     else
@@ -320,7 +344,6 @@ boolean modbusMaster::available() {
     case SEND:
 
       if (indexSensor < _totalSensors) {
-        //        _mbSensorPtr = _mbSensorsPtr[indexSensor];
         digitalWrite(_TxEnablePin, HIGH);
         (*_mbSensorsPtr[indexSensor]).sendFrame(_hwSerial);
 
@@ -351,7 +374,7 @@ boolean modbusMaster::available() {
 
       if (!(*_hwSerial).available()) {
         if (millis() - sendMillis > TIMEOUT) {
-          (*_mbSensorsPtr[indexSensor]).putStatus(MB_TIMEOUT);
+          (*_mbSensorsPtr[indexSensor])._status = MB_TIMEOUT;
           indexSensor++;
           _state = SEND;
         }
