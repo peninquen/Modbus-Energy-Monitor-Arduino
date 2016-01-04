@@ -3,7 +3,7 @@
   create ModbusSensor and ModbusMaster classes to process values from
   a Eastron SMD120 and family.
 
-  version 0.4 BETA 31/12/2015
+  version 0.5 BETA 3/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -29,96 +29,22 @@
 #define CHANGE_TO_ONE  0x01
 #define HOLD_VALUE     0xFF
 
+// Function codes operative
+#define READ_HOLDING_REGISTERS    0x03 // Reads the binary contents of holding registers (4X references) in the slave.
+#define READ_INPUT_REGISTERS      0x04 // Reads the binary contents of input registers (3X references) in the slave. Not writable.
+#define PRESET_MULTIPLE_REGISTERS 0x10 // Presets values into a sequence of holding registers (4X references).
+
+
 // forward definition
-class modbusMaster;
-
-// float 32 bit IEEE754
-union dataFloat {
-  float f;
-  uint8_t array[4];
-};
-
-//------------------------------------------------------------------------------
-class modbusFrame {
-  private:
-    uint8_t     _frame[8];
-    uint8_t     _status;
-
-  public:
-    // Constructor
-    modbusFrame(modbusMaster *mbm, uint8_t id, uint8_t fc, uint16_t adr);
-
-    // Constructor
-    modbusFrame(uint8_t id, uint8_t fc, uint16_t adr);
-
-    // Destructor, remember disconnect object before leaving the scope, no automatic feature except for MBSerial
-    ~modbusFrame();
-
-    // read value in defined units
-    //float read();
-
-    // read value as an integer multiplied by factor
-    //uint16_t read(uint16_t factor);
-
-    // get status of the value
-    /*inline*/ uint8_t getStatus();
-
-    // write sensor value
-    //inline void write(float value);
-
-    //  change status, return new status
-    /*inline*/ uint8_t putStatus(uint8_t status);
-
-    // get pointer to _poll frame
-    /*inline*/ uint8_t *getFramePtr();
-
-};
-
-
-//------------------------------------------------------------------------------
-class modbusSensor {
-  public:
-    // Constructor
-    modbusSensor(modbusMaster *mbm, uint8_t id, uint16_t adr, uint8_t hold);
-
-    // Constructor
-    modbusSensor(uint8_t id, uint16_t adr, uint8_t hold);
-
-    // Destructor, remember disconnect object before leaving the scope, no automatic feature except for MBSerial
-    ~modbusSensor();
-
-    // read value in defined units
-    float read();
-
-    // read value as a integer multiplied by factor
-    uint16_t read(uint16_t factor);
-
-    // get status of the value
-    /*inline*/ uint8_t getStatus();
-
-    // write sensor value
-    inline void write(float value);
-
-    //  change status, return new status
-    /*inline*/ uint8_t putStatus(uint8_t status);
-
-    // get pointer to _poll frame
-    /*inline*/ uint8_t *getFramePtr();
-    
-  private:
-    uint8_t     _frame[8];
-    uint8_t     _status;
-    uint8_t     _hold;
-    dataFloat   _value;
-};
+class modbusSensor;
 
 //------------------------------------------------------------------------------
 class modbusMaster {
   public:
-    // constructor
+    // constructor, implicit
     //    modbusMaster();
 
-    // configure conection
+    // configure connection
     void config(HardwareSerial *hwSerial, uint8_t TxEnPin, uint16_t pollInterval);
 
     // Connect a modbusSensor to modbusMaster array of queries
@@ -137,21 +63,76 @@ class modbusMaster {
     boolean available();
 
   protected:
-    /*inline*/ void sendFrame(uint8_t frameSize);
-    /*inline*/ void sendFrame();    
     /*inline*/ void readBuffer(uint8_t frameSize);
-    uint8_t  _state;                    // Modbus FSM status (SENDING, RECEIVING, STANDBY, WAINTING_NEXT_POLL)
+    uint8_t  _state;                    // Modbus FSM state (SENDING, RECEIVING, STANDBY, WAINTING_NEXT_POLL)
     uint8_t  _TxEnablePin;              // pin to enable transmision in MAX485
+    uint8_t  _buffer[BUFFER_SIZE];      // buffer to process rececived frame
     uint8_t  _totalSensors;             // constant, max number of sensors to poll
     uint16_t _pollInterval;             // constant, time between polling same data
     uint32_t _T2_5;                     // time between characters in a frame, in microseconds
-    uint8_t  _buffer[BUFFER_SIZE];      // buffer to process rececived frame
     HardwareSerial  *_hwSerial;
     modbusSensor    *_mbSensorsPtr[MAX_SENSORS]; // array of modbusSensor's pointers
-    modbusSensor    *_mbSensorPtr;
-    uint8_t         *_framePtr;
+    //friend ModbusSensor;
 } ;
-extern modbusMaster MBSerial;
+
+//predefined instance to poll, collect a process values from modbus protocol
+
+static modbusMaster MBSerial;
+
+//------------------------------------------------------------------------------
+class modbusSensor {
+  public:
+    // Constructor, implicit MBSerial, fc 0x4, register size 2, datatype float
+    modbusSensor(uint8_t id, uint16_t adr, uint8_t hold);
+
+    // Constructor, implicit MBSerial, fc 0x4,
+    modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue);
+
+    // Constructor,
+    modbusSensor(uint8_t id, uint8_t fc, uint16_t adr, uint8_t hold, uint8_t sizeofValue);
+
+    // Destructor, remember disconnect object before leaving the scope, no automatic feature except for MBSerial
+    ~modbusSensor() {
+      delete[] _value;
+      delete[] _frame;
+      MBSerial.disconnect(this);
+    }
+    // read a float value
+    float read();
+
+    template< typename T > T &read(T &t) {
+      uint8_t *ptr = (uint8_t *) &t;
+      uint8_t *e = _value;
+      for (int count = sizeof(T); count; --count, ++e) *ptr++ = *e;
+      return t;
+    }
+
+    // get status of the value
+    /*inline*/ uint8_t getStatus() {
+      return _status;
+    };
+
+    // Preset sensor value, fc 0x10, only holding registers defined with fc 0x03
+    void preset(uint8_t *newValue);
+
+    //  change status, return new status
+    uint8_t putStatus(const uint8_t status) {
+      _status = status;
+      return _status;
+    };
+
+    void sendFrame(HardwareSerial *hwSerial);
+
+    void processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize);
+
+  protected:
+    uint8_t *_value;      // pointer to an object value
+    uint8_t *_frame;      // pointer to TX frame
+    uint8_t  _frameSize;  // size of the TX frame
+    uint8_t  _status;     // returned status
+    uint8_t  _hold;       // offline value
+};
+
 
 #endif
 
