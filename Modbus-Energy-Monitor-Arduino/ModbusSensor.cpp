@@ -10,7 +10,7 @@
 *******************************************************************************/
 //------------------------------------------------------------------------------
 
-#define MODBUS_SERIAL_OUTPUT  //Verbose MODBUS messages and timing
+//#define MODBUS_SERIAL_OUTPUT  //Verbose MODBUS messages and timing
 
 #ifdef MODBUS_SERIAL_OUTPUT
 #define MODBUS_SERIAL_BEGIN(...) Serial.begin(__VA_ARGS__)
@@ -269,10 +269,10 @@ inline void modbusMaster::readBuffer(uint8_t frameSize) {
     else
       Serial.print(F(" "));
     Serial.print(_buffer[index], HEX);
-#endif
   }
   MODBUS_SERIAL_PRINT(" ");
   MODBUS_SERIAL_PRINTLN(millis());
+#endif
 }
 
 //-----------------------------------------------------------------------------
