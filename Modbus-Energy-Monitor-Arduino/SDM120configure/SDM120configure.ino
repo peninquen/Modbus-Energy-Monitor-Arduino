@@ -40,15 +40,6 @@ uint16_t baudRate = 2400;              // b 2400
 uint16_t byteFormat = SERIAL_8N2;      // Prty n
 #define REFRESH_INTERVAL  1000         // refresh time, 1 SECOND
 
-void printStatus(uint8_t status) {
-  if (status == MB_VALID_DATA) Serial.println(F("Done."));
-  else {
-    Serial.print(F("Exception code: "));
-    Serial.println(status, HEX);
-    exit;
-  }
-}
-
 void setup() {
 
   Serial.begin(9600);
@@ -74,9 +65,8 @@ void id_configure() {
   while (!Serial.available()) {}
   idNumber = Serial.parseInt();
 
-  modbusSensor id(idNumber, READ_HOLDING_REGISTERS, DEVICE_ID, HOLD_VALUE, sizeof(float));
+  modbusSensor id(idNumber, DEVICE_ID, HOLD_VALUE, sizeof(float), READ_HOLDING_REGISTERS);
   while (!MBSerial.available()) {}
-  printStatus(id.getStatus());
 
   Serial.print(F("Meter Id: ")); Serial.println(id.read(), 0);
   Serial.print(F("New Id: "));
@@ -85,7 +75,7 @@ void id_configure() {
   if (iParameter >= 1 && iParameter <= 247) {
   float fParameter = (float)iParameter;
     id.preset(fParameter);
-    printStatus(id.getStatus());
+    if (id.printStatus() != MB_VALID_DATA) return;
     idNumber == iParameter; // actuliza el id para las siguientes peticiones
   }
   else Serial.println(F("Skip"));
@@ -94,9 +84,8 @@ void id_configure() {
 //-----------------------------------------------------------------------------------------
 //Procesa el valor de registro baud rate
 void baudrate_configure() {
-  modbusSensor baudrate(idNumber, READ_HOLDING_REGISTERS, BAUD_RATE, HOLD_VALUE, sizeof(float));
+  modbusSensor baudrate(idNumber, BAUD_RATE, HOLD_VALUE, sizeof(float), READ_HOLDING_REGISTERS);
   while (!MBSerial.available()) {}
-  printStatus(baudrate.getStatus());
   float defBaudRate = baudrate.read(); //default
   Serial.print(F("Baud rate (0:2400 1:4800 2:9600 5:1200): "));
   Serial.println(defBaudRate, 0);
@@ -123,7 +112,7 @@ void baudrate_configure() {
   float fParameter = (float)iParameter;
   Serial.println(fParameter, 0);
   baudrate.preset(fParameter);
-  printStatus(baudrate.getStatus());
+  if(baudrate.printStatus() != MB_VALID_DATA) return;
   if (defBaudRate != iParameter) {
     MBSerial.end();
     MBSerial.begin(baudRate, byteFormat);
@@ -134,9 +123,8 @@ void baudrate_configure() {
 //Procesa el valor de registro 'tiempo entre pantallas'
 void turnDisplay_configure() {
   uint16_t bcd;
-  modbusSensor turnDisplay(idNumber, READ_HOLDING_REGISTERS, TIME_DISP, HOLD_VALUE, sizeof(bcd));
+  modbusSensor turnDisplay(idNumber, TIME_DISP, HOLD_VALUE, sizeof(bcd), READ_HOLDING_REGISTERS);
   while (!MBSerial.available()) {}
-  printStatus(turnDisplay.getStatus());
   Serial.print(F("Time of display in turns (0 - 30 seconds): "));
   Serial.print(turnDisplay.read(bcd), HEX);
   Serial.print(F("New time: "));
@@ -146,7 +134,7 @@ void turnDisplay_configure() {
     bcd = bcd % 10 | (bcd / 10 << 4); //convert to BCD
     Serial.println(bcd, HEX);
     turnDisplay.preset(bcd);
-    printStatus(turnDisplay.getStatus());
+    if (turnDisplay.printStatus() != MB_VALID_DATA) return;
   }
   else Serial.println(F("Skip"));
 }
@@ -155,9 +143,8 @@ void turnDisplay_configure() {
 //Procesa el valor de registro 'salida pulso 1'
 void pulse1kwh_configure() {
   uint16_t hex;
-  modbusSensor pulse1kwh(idNumber, READ_HOLDING_REGISTERS, PULSE1_KWH, HOLD_VALUE, sizeof(hex));
+  modbusSensor pulse1kwh(idNumber, PULSE1_KWH, HOLD_VALUE, sizeof(hex), READ_HOLDING_REGISTERS);
   while (!MBSerial.available()) {}
-  printStatus(pulse1kwh.getStatus());
   Serial.print(F("Pulse 1 output (0:1000, 1:100, 2:10 3:1 imp/Kwh): "));
   Serial.println(pulse1kwh.read(hex), HEX);
   Serial.print(F("New pulse 1 output value: "));
@@ -166,7 +153,7 @@ void pulse1kwh_configure() {
   if (hex >= 0 && hex <= 3) {
     Serial.println(hex, HEX);
     pulse1kwh.preset(hex);
-    printStatus(pulse1kwh.getStatus());
+    if (pulse1kwh.printStatus() != MB_VALID_DATA) return;
   }
   else Serial.println(F("Skip"));
 }
@@ -175,9 +162,8 @@ void pulse1kwh_configure() {
 //Procesa el valor de registro 'modo medida de energía'
 void energyMode_configure() {
   uint16_t hex;
-  modbusSensor enrgMode(idNumber, READ_HOLDING_REGISTERS, TOT_MODE, HOLD_VALUE, sizeof(hex));
+  modbusSensor enrgMode(idNumber, TOT_MODE, HOLD_VALUE, sizeof(hex), READ_HOLDING_REGISTERS);
   while (!MBSerial.available()) {}
-  printStatus(enrgMode.getStatus());
   Serial.print(F("Measurement mode (0:mode 1, 1:mode 2, 2:mode 3): "));
   Serial.println(enrgMode.read(hex), HEX);
   Serial.print(F("New Measure mode: "));
@@ -186,7 +172,7 @@ void energyMode_configure() {
   if (hex >= 0 && hex <= 2) {
     Serial.println(hex, HEX);
     enrgMode.preset(hex);
-    printStatus(enrgMode.getStatus());
+    if (enrgMode.printStatus() != MB_VALID_DATA) return;
   }
   else Serial.println(F("Skip"));
 }
@@ -195,9 +181,8 @@ void energyMode_configure() {
 //Procesa el valor de registro 'modo salida pulso 1'
 void pulse1Mode_configure() {
   uint16_t hex;
-  modbusSensor pulse1Mode(idNumber, READ_HOLDING_REGISTERS, PULSE1_MODE, HOLD_VALUE, sizeof(hex));
+  modbusSensor pulse1Mode(idNumber, PULSE1_MODE, HOLD_VALUE, sizeof(hex), READ_HOLDING_REGISTERS);
   while (!MBSerial.available()) {}
-  printStatus(pulse1Mode.getStatus());
   Serial.print(F("Pulse 1 output mode (0:imp+exp, 1:imp, 2:exp): "));
   Serial.println(pulse1Mode.read(hex), HEX);
   Serial.print(F("New pulse 1 output mode: "));
@@ -206,7 +191,7 @@ void pulse1Mode_configure() {
   if (hex >= 0 && hex <= 2) {
     Serial.println(hex, HEX);
     pulse1Mode.preset(hex);
-    printStatus(pulse1Mode.getStatus());
+    if (pulse1Mode.printStatus() != MB_VALID_DATA) return;
   }
   else Serial.println(F("Skip"));
 
