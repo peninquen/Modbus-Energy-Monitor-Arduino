@@ -59,7 +59,13 @@ uint16_t calculateCRC(uint8_t *array, uint8_t num);
 class modbusMaster {
   public:
     // constructor
-    //    modbusMaster();
+        modbusMaster() {
+  uint32_t nowMillis = millis();
+  _lastPollMillis = nowMillis;     // time to check poll interval
+  _sendMillis = nowMillis;         // time to check timeout interval
+  _receivedMillis = nowMillis;     // time to check waiting interval
+          
+        }
 
     // configure serial communcation
     void config(HardwareSerial *hwSerial, uint8_t TxEnPin, uint16_t pollInterval);
@@ -90,6 +96,10 @@ class modbusMaster {
     uint8_t  _totalSensors;             // max number of sensors to poll
     uint16_t _pollInterval;             // time between polling same data
     uint32_t _T2_5;                     // time between characters in a frame, in microseconds
+    uint32_t _lastPollMillis;            // time to check poll interval
+    uint32_t _sendMillis;                // time to check timeout interval
+    uint32_t _receivedMillis;            // time to check waiting interval
+    uint32_t _tMicros;                   // time to check between characters in a frame
     HardwareSerial  *_hwSerial;
     modbusSensor    *_mbSensorsPtr[MAX_SENSORS]; // array of modbusSensor's pointers
 } ;

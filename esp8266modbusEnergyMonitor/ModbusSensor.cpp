@@ -138,11 +138,7 @@ void modbusMaster::end() {
 boolean modbusMaster::available() {
   static uint8_t  indexSensor = 0;                // index of arrray of sensors
   static uint8_t  frameSize;                      // size of the answer frame
-  static uint32_t tMicros;                        // time to check between characters in a frame
-  static uint32_t nowMillis = millis();
-  static uint32_t lastPollMillis = nowMillis;     // time to check poll interval
-  static uint32_t sendMillis = nowMillis;         // time to check timeout interval
-  static uint32_t receivedMillis = nowMillis;     // time to check waiting interval
+  uint32_t nowMillis;                             // time to check between characters in a frame
 
   switch (_state) {
     //-----------------------------------------------------------------------------
@@ -179,7 +175,7 @@ boolean modbusMaster::available() {
         _state = RECEIVING;
 
         //starts  slave timeOut
-        sendMillis = millis();
+        _sendMillis = millis();
         frameSize = 0;
       }
       return false;
@@ -188,7 +184,7 @@ boolean modbusMaster::available() {
     case RECEIVING:
 
       if (!(*_hwSerial).available()) {
-        if (millis() - sendMillis > TIMEOUT) {
+        if (millis() - _sendMillis > TIMEOUT) {
           (*_mbSensorsPtr[indexSensor])._status = MB_TIMEOUT;
           indexSensor++;
           _state = SEND;
@@ -198,14 +194,14 @@ boolean modbusMaster::available() {
 
       if ((*_hwSerial).available() > frameSize) {
         frameSize++;
-        tMicros = micros();
+        _tMicros = micros();
       }
       else {
-        if (micros() - tMicros > _T2_5) { // inter-character time exceeded
+        if (micros() - _tMicros > _T2_5) { // inter-character time exceeded
           readBuffer(frameSize);
           (*_mbSensorsPtr[indexSensor]).processBuffer(_buffer, frameSize);
           indexSensor++;
-          receivedMillis = millis(); //starts waiting interval to next request
+          _receivedMillis = millis(); //starts waiting interval to next request
           _state = IDLE;
         }
       }
@@ -213,15 +209,15 @@ boolean modbusMaster::available() {
 
     //-----------------------------------------------------------------------------
     case IDLE:
-      if (millis() - receivedMillis > WAITING_INTERVAL)
+      if (millis() - _receivedMillis > WAITING_INTERVAL)
         _state = SEND;
       return false;
 
     //-----------------------------------------------------------------------------
     case WAITING_NEXT_POLL:
       nowMillis = millis();
-      if ((nowMillis - lastPollMillis) > _pollInterval) {
-        lastPollMillis = nowMillis;
+      if ((nowMillis - _lastPollMillis) > _pollInterval) {
+        _lastPollMillis = nowMillis;
         _state = SEND;
       }
       return false;
@@ -250,9 +246,9 @@ inline void modbusMaster::sendFrame(uint8_t *frame, uint8_t frameSize) {
       Serial.print(F(" "));
     Serial.print(frame[i], HEX);
   }
-#endif
   MODBUS_SERIAL_PRINT("    ");
   MODBUS_SERIAL_PRINTLN(millis());
+#endif
 }
 
 //-----------------------------------------------------------------------------

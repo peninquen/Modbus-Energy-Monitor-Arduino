@@ -9,14 +9,16 @@
 
 **********************************************************************/
 
+
+//#include <ESP8266WiFi.h>      //ESP library from http://github.com/esp8266/Arduino
 #include "ModbusSensor.h"
 #include "SDMdefines.h"
 
-#define MB_SERIAL_PORT &Serial1   // Arduino has only one serial port, Mega has 3 serial ports.
+#define MB_SERIAL_PORT &Serial   // Arduino has only one serial port, Mega has 3 serial ports.
 // if use Serial 0, remember disconect Tx (pin0) when upload sketch, then re-conect
 #define MB_BAUDRATE       2400          // b 2400
 #define MB_BYTEFORMAT     SERIAL_8N2    // Prty n
-#define TxEnablePin       17
+#define TxEnablePin       2
 
 #define ID_1  1                       // id 001  modbus id of the energy monitor
 #define REFRESH_INTERVAL  5000        // refresh time, 5 SECONDS
