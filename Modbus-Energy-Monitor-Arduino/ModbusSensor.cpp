@@ -235,16 +235,16 @@ boolean modbusMaster::available() {
 //
 void modbusMaster::sendFrame(uint8_t *frame, uint8_t frameSize) {
   MODBUS_SERIAL_PRINT(millis());
-  MODBUS_SERIAL_PRINT(F(" MASTER:"));
+  MODBUS_SERIAL_PRINT(" MASTER:");
 
   (*_hwSerial).write(frame, frameSize);
 
 #ifdef MODBUS_SERIAL_OUTPUT
   for (uint8_t index = 0; index < frameSize; index++) {
     if (frame[index] < 0x10)
-      Serial.print(F(" 0"));
+      Serial.print(" 0");
     else
-      Serial.print(F(" "));
+      Serial.print(" ");
     Serial.print(frame[index], HEX);
   }
   Serial.print("    ");
@@ -263,9 +263,9 @@ inline void modbusMaster::readBuffer(uint8_t frameSize) {
 #ifdef MODBUS_SERIAL_OUTPUT
   for (uint8_t index = 0; index < frameSize; index++) {
     if (_rx_buffer[index] < 0x10)
-      Serial.print(F(" 0"));
+      Serial.print(" 0");
     else
-      Serial.print(F(" "));
+      Serial.print(" ");
     Serial.print(_rx_buffer[index], HEX);
   }
   Serial.print(" ");
@@ -486,43 +486,43 @@ void modbusSensor::processRead(uint8_t *ptr, const uint8_t objectSize) {
 uint8_t modbusSensor::printStatus() {
   switch (_status) {
     case MB_VALID_DATA:
-      Serial.println(F("Transmision successful"));
+      Serial.println("Transmision successful");
       return _status;
     case MB_INVALID_ID:
-      Serial.println(F("No valid Id"));
+      Serial.println("No valid Id");
       return _status;
     case MB_INVALID_FC:
-      Serial.println(F("No valid FC"));
+      Serial.println("No valid FC");
       return _status;
     case MB_TIMEOUT:
-      Serial.println(F("Time out"));
+      Serial.println("Time out");
       return _status;
     case MB_INVALID_CRC:
-      Serial.println(F("incorrect CRC"));
+      Serial.println("incorrect CRC");
       return _status;
     case MB_INVALID_BUFF:
-      Serial.println(F("No valid buffer"));
+      Serial.println("No valid buffer");
       return _status;
     case MB_INVALID_ADR:
-      Serial.println(F("No valid address"));
+      Serial.println("No valid address");
       return _status;
     case MB_INVALID_DATA:
-      Serial.println(F("No valid data"));
+      Serial.println("No valid data");
       return _status;
     case MB_ILLEGAL_FC:
-      Serial.println(F("Exception: Illegal FC"));
+      Serial.println("Exception: Illegal FC");
       return _status;
     case MB_ILLEGAL_ADR:
-      Serial.println(F("Exception: Illegal address"));
+      Serial.println("Exception: Illegal address");
       return _status;
     case MB_ILLEGAL_DATA:
-      Serial.println(F("Exception: Illegal data"));
+      Serial.println("Exception: Illegal data");
       return _status;
     case MB_SLAVE_FAIL:
-      Serial.println(F("Exception: Slave failed "));
+      Serial.println("Exception: Slave failed ");
       return _status;
     case MB_EXCEPTION:
-      Serial.println(F("Exception"));
+      Serial.println("Exception");
       return _status;
     default:
       Serial.println ("** ERROR **");
