@@ -304,7 +304,7 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeo
       _status = MB_INVALID_FC;
       return;
   }
-  _frameSize = 8; // alway read function
+  _frameSize = 8; // always read function, change in preset()
 
   _frame[0] = id;
   //_frame[1] defined previously;
@@ -321,37 +321,7 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeo
 
   MBSerial.connect(this);
 }
-/*
-//-----------------------------------------------------------------------------
-// Constructor
-modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
 
-  // reserve space to new struct of value
-  _value = new uint8_t[4];
-  // pointer to the first byte
-  uint8_t *ptr = _value;
-  // reset content
-  for (int count = 4; count; --count) *ptr++ = 0;
-
-  _frameSize = 8;
-  _frame = new uint8_t[8];
-
-  _frame[0] = id;
-  _frame[1] = READ_INPUT_REGISTERS;
-  _frame[2] = adr >> 8;
-  _frame[3] = adr & 0x00FF;
-  _frame[4] = 0x00;
-  _frame[5] = 0x02;
-  uint16_t crc = calculateCRC(_frame, 6);
-  _frame[6] = crc & 0x00FF;
-  _frame[7] = crc >> 8;
-
-  _status = MB_TIMEOUT;
-  _hold = hold;
-
-  MBSerial.connect(this);
-}
-*/
 //------------------------------------------------------------------------------
 //Process RX buffer
 void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
