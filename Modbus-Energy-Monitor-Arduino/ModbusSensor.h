@@ -117,19 +117,17 @@ class modbusSensor {
     friend boolean modbusMaster::available();
 
   public:
-    uint16_t *este;
     // Constructor
     modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue, uint8_t fc);
 
    // Constructor
     modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue) {
       modbusSensor(id, adr, hold, sizeofValue, READ_INPUT_REGISTERS);
+
     };
   
     // Constructor
-        modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
-      modbusSensor(id, adr, hold, 4, READ_INPUT_REGISTERS);
-    };
+        modbusSensor(uint8_t id, uint16_t adr, uint8_t hold);
 
     // Destructor
     ~modbusSensor() {

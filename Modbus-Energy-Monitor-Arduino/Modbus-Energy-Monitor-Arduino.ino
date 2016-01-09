@@ -21,12 +21,12 @@ float energy;
 // global variables to poll, process and send values
 
 //modbusSensor(uint8_t id, uint8_t fc, uint16_t adr, uint8_t hold, uint8_t sizeofValue)
-modbusSensor volt(ID_1, VOLTAGE, CHANGE_TO_ZERO, sizeof(three_phase));
+modbusSensor volt(ID_1, VOLTAGE, CHANGE_TO_ZERO, sizeof(three_phase), READ_INPUT_REGISTERS);
 modbusSensor curr(ID_1, CURRENT, CHANGE_TO_ZERO, sizeof(three_phase), READ_INPUT_REGISTERS);
 modbusSensor pwr(ID_1, POWER, CHANGE_TO_ZERO, sizeof(three_phase), READ_INPUT_REGISTERS);
 
 //modbusSensor(uint8_t uint16_t adr, uint8_t hold)
-modbusSensor enrg(ID_1, IAENERGY, HOLD_VALUE, sizeof(float), READ_INPUT_REGISTERS);
+modbusSensor enrg(ID_1, IAENERGY, HOLD_VALUE);
 
 
 void setup() {
@@ -34,9 +34,6 @@ void setup() {
   delay(95);
   MBSerial.config(MB_SERIAL_PORT, TxEnablePin, REFRESH_INTERVAL);
   MBSerial.begin(MB_BAUDRATE, MB_BYTEFORMAT);
-//  uint8_t *ptr = (uint8_t *) &volt
-  Serial.println((uint16_t) &volt, HEX);
-  Serial.println((uint16_t) volt.este, HEX);
   Serial.println("time(s),Volt1(V), Volt2(V), Volt3(V), Curr1(A) Curr2(A), Curr3(A), Power1(W), Power2(W), Power3(W), Energy(Kwh)");
 }
 
@@ -69,10 +66,7 @@ void loop() {
     Serial.print(power.line3, 2);
     Serial.print(",");
     Serial.println(energy, 2);
-    volt.printStatus();
-    curr.printStatus();
-    pwr.printStatus();
-    enrg.printStatus();
+
   }
 }
 

@@ -146,8 +146,6 @@ boolean modbusMaster::available() {
         digitalWrite(_TxEnablePin, HIGH);
         uint8_t *frame = (*_mbSensorsPtr[indexSensor])._frame;
         uint8_t frameSize = (*_mbSensorsPtr[indexSensor])._frameSize;
-        MODBUS_SERIAL_PRINTLN(indexSensor);
-        MODBUS_SERIAL_PRINTLN(frameSize);
         sendFrame(frame, frameSize);
         _state = SENDING;
         return false;
@@ -184,7 +182,9 @@ boolean modbusMaster::available() {
       if (!(*_hwSerial).available()) {
         if (millis() - _timeoutMillis > TIMEOUT) {
           (*_mbSensorsPtr[indexSensor])._status = MB_TIMEOUT;
+#ifdef MODBUS_SERIAL_OUTPUT
           (*_mbSensorsPtr[indexSensor]).printStatus();
+#endif          
           indexSensor++;
           _state = SEND;
         }
@@ -199,7 +199,9 @@ boolean modbusMaster::available() {
         if (micros() - tMicros > _T2_5) {
           readBuffer(frameSize);
           (*_mbSensorsPtr[indexSensor]).processBuffer(_rx_buffer, frameSize);
+#ifdef MODBUS_SERIAL_OUTPUT
           (*_mbSensorsPtr[indexSensor]).printStatus();
+#endif
           indexSensor++;
           _waitingMillis = millis(); //starts waiting interval to next request
           _state = IDLE;
@@ -278,13 +280,58 @@ modbusMaster MBSerial;
 //-----------------------------------------------------------------------------
 // Constructor
 modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue, uint8_t fc) {
-  este = (uint16_t *)this;
   // reserve space to new struct of value
   _value = new uint8_t[sizeofValue];
-  // pointer to the first byte 
+  // pointer to the first byte
   uint8_t *ptr = _value;
   // reset content
-//  for (int count = sizeofValue; count; --count) *ptr++ = 0;
+  for (int count = sizeofValue; count; --count) *ptr++ = 0;
+
+  switch (fc) {
+    case PRESET_MULTIPLE_REGISTERS:
+    case READ_HOLDING_REGISTERS:
+      _frame = new uint8_t[9 + sizeofValue]; //reserve space for fc PRESET_MULTIPLE_REGISTERS
+      _frame[1] = READ_HOLDING_REGISTERS;
+      break;
+    case READ_INPUT_REGISTERS:
+      _frame = new uint8_t[8];
+      _frame[1] = READ_INPUT_REGISTERS;
+      break;
+    default:
+      // exit without connect to MBSerial
+      _frame = 0;
+      _frameSize = 0;
+      _status = MB_INVALID_FC;
+      return;
+  }
+  _frameSize = 8; // alway read function
+
+  _frame[0] = id;
+  //_frame[1] defined previously;
+  _frame[2] = adr >> 8;
+  _frame[3] = adr & 0x00FF;
+  _frame[4] = 0x00;
+  _frame[5] = sizeofValue / 2;
+  uint16_t crc = calculateCRC(_frame, 6);
+  _frame[6] = crc & 0x00FF;
+  _frame[7] = crc >> 8;
+
+  _status = MB_TIMEOUT;
+  _hold = hold;
+
+  MBSerial.connect(this);
+}
+
+//-----------------------------------------------------------------------------
+// Constructor
+modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
+
+  // reserve space to new struct of value
+  _value = new uint8_t[4];
+  // pointer to the first byte
+  uint8_t *ptr = _value;
+  // reset content
+  for (int count = 4; count; --count) *ptr++ = 0;
 
   _frameSize = 8;
   _frame = new uint8_t[8];
@@ -294,11 +341,11 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeo
   _frame[2] = adr >> 8;
   _frame[3] = adr & 0x00FF;
   _frame[4] = 0x00;
-  _frame[5] = sizeofValue/2;
+  _frame[5] = 0x02;
   uint16_t crc = calculateCRC(_frame, 6);
   _frame[6] = crc & 0x00FF;
   _frame[7] = crc >> 8;
- 
+
   _status = MB_TIMEOUT;
   _hold = hold;
 
@@ -330,7 +377,7 @@ void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
 
   // check exception error in function code
   if (rxFrame[1] & 0x80 == 0x80) {
-    _status = rxFrame[2]; // see exception codes in define area
+    _status = rxFrame[2]; // see exception codes in define area or printStatus()
     return;
   }
 
@@ -415,7 +462,7 @@ float modbusSensor::read() {
       case CHANGE_TO_ONE: return 1.0;
       case HOLD_VALUE:;
     }
-  return (float) *_value;
+  return (float) * _value;
 }
 
 //------------------------------------------------------------------------------
