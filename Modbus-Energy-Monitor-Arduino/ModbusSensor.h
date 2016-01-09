@@ -117,17 +117,14 @@ class modbusSensor {
     friend boolean modbusMaster::available();
 
   public:
-    // Constructor
+    // Target constructor
     modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue, uint8_t fc);
 
-   // Constructor
-    modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue) {
-      modbusSensor(id, adr, hold, sizeofValue, READ_INPUT_REGISTERS);
+    // delegating constructor
+    modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue): modbusSensor(id, adr, hold, sizeofValue, READ_INPUT_REGISTERS) {};
 
-    };
-  
-    // Constructor
-        modbusSensor(uint8_t id, uint16_t adr, uint8_t hold);
+    // delegating constructor
+    modbusSensor(uint8_t id, uint16_t adr, uint8_t hold): modbusSensor(id, adr, hold, 4, READ_INPUT_REGISTERS) {};
 
     // Destructor
     ~modbusSensor() {
@@ -154,7 +151,7 @@ class modbusSensor {
     template < typename T > void preset(const T &t) {
       //      processPreset((uint8_t *) &t, sizeof(T));
     };
-   
+
     // read value in defined units
     float read();
 

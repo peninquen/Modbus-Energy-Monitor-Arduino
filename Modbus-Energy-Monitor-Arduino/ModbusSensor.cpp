@@ -321,7 +321,7 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeo
 
   MBSerial.connect(this);
 }
-
+/*
 //-----------------------------------------------------------------------------
 // Constructor
 modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
@@ -351,7 +351,7 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
 
   MBSerial.connect(this);
 }
-
+*/
 //------------------------------------------------------------------------------
 //Process RX buffer
 void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
@@ -415,10 +415,10 @@ void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
       return;
   }
 }
-/*
+
 //------------------------------------------------------------------------------
 // Construct Tx frame, send it, receive response and process it, reconstruct READ frame
-void modbusSensor::processPreset(const uint8_t *ptr, uint8_t objectSize) {
+void modbusSensor::processPreset(uint8_t *ptr, uint8_t objectSize) {
 
   if (_frame[2] != READ_HOLDING_REGISTERS) {
     _status = MB_INVALID_ADR;
@@ -451,7 +451,7 @@ void modbusSensor::processPreset(const uint8_t *ptr, uint8_t objectSize) {
   _frame[6] = crc & 0x00FF;
   _frame[7] = crc >> 8;
   _frameSize = 8;
-}*/
+}
 
 //------------------------------------------------------------------------------
 // read value in defined units
