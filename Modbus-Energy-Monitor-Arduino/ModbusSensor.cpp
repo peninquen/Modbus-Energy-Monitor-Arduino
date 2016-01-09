@@ -1,8 +1,8 @@
 /******************************************************************************
   ModbusSensor class
-  A class to collect data from a Modbus energy monitor model SDM120 and family
 
-  version 0.5 BETA 4/01/2016
+
+  version 0.5.3 BETA 09/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -10,7 +10,7 @@
 *******************************************************************************/
 //------------------------------------------------------------------------------
 
-//#define MODBUS_SERIAL_OUTPUT  //Verbose MODBUS messages and timing
+#define MODBUS_SERIAL_OUTPUT  //Verbose MODBUS messages and timing
 
 #ifdef MODBUS_SERIAL_OUTPUT
 #define MODBUS_SERIAL_BEGIN(...) Serial.begin(__VA_ARGS__)
@@ -33,30 +33,28 @@
 #define WAITING_NEXT_POLL   5
 
 /*#define READ_COIL_STATUS          0x01 // Reads the ON/OFF status of discrete outputs (0X references, coils) in the slave.
-  #define READ_INPUT_STATUS         0x02 // Reads the ON/OFF status of discrete inputs (1X references) in the slave.
-  #define READ_HOLDING_REGISTERS    0x03 // Reads the binary contents of holding registers (4X references) in the slave.
-  #define READ_INPUT_REGISTERS      0x04 // Reads the binary contents of input registers (3X references) in the slave. Not writable.
-  #define FORCE_MULTIPLE_COILS      0x0F // Forces each coil (0X reference) in a sequence of coils to either ON or OFF.
-  #define PRESET_MULTIPLE_REGISTERS 0x10 // Presets values into a sequence of holding registers (4X references).
+#define READ_INPUT_STATUS         0x02 // Reads the ON/OFF status of discrete inputs (1X references) in the slave.
+#define READ_HOLDING_REGISTERS    0x03 // Reads the binary contents of holding registers (4X references) in the slave.
+#define READ_INPUT_REGISTERS      0x04 // Reads the binary contents of input registers (3X references) in the slave. Not writable.
+#define FORCE_MULTIPLE_COILS      0x0F // Forces each coil (0X reference) in a sequence of coils to either ON or OFF.
+#define PRESET_MULTIPLE_REGISTERS 0x10 // Presets values into a sequence of holding registers (4X references).
 
-  #define MB_VALID_DATA     0x00
-  #define MB_INVALID_ID     0xE0
-  #define MB_INVALID_FC     0xE1
-  #define MB_TIMEOUT        0xE2
-  #define MB_INVALID_CRC    0xE3
-  #define MB_INVALID_BUFF   0xE4
-  #define MB_INVALID_ADR    0xE5
-  #define MB_INVALID_DATA   0xE6
-  #define MB_ILLEGAL_FC     0x01
-  #define MB_ILLEGAL_ADR    0x02
-  #define MB_ILLEGAL_DATA   0x03
-  #define MB_SLAVE_FAIL     0x04
-  #define MB_EXCEPTION      0x05
+#define MB_VALID_DATA     0x00
+#define MB_INVALID_ID     0xE0
+#define MB_INVALID_FC     0xE1
+#define MB_TIMEOUT        0xE2
+#define MB_INVALID_CRC    0xE3
+#define MB_INVALID_BUFF   0xE4
+#define MB_ILLEGAL_FC     0x01
+#define MB_ILLEGAL_ADR    0x02
+#define MB_ILLEGAL_DATA   0x03
+#define MB_SLAVE_FAIL     0x04
+#define MB_EXCEPTION      0x05
 
-  // when _status is diferent to MB_VALID_DATA change it to zero or hold last valid value?
-  #define CHANGE_TO_ZERO    0x00
-  #define CHANGE_TO_ONE     0x01
-  #define HOLD_VALUE        0xFF
+// when _status is diferent to MB_VALID_DATA change it to zero or hold last valid value?
+//#define CHANGE_TO_ZERO    0x00
+//#define CHANGE_TO_ONE     0x01
+//#define HOLD_VALUE        0xFF
 */
 
 uint16_t calculateCRC(uint8_t *array, uint8_t num) {
@@ -67,26 +65,23 @@ uint16_t calculateCRC(uint8_t *array, uint8_t num) {
     for (uint8_t j = 8; j; j--) {
       flag = temp & 0x0001;
       temp >>= 1;
-      if (flag) temp ^= 0xA001;
+      if (flag)
+        temp ^= 0xA001;
     }
   }
   return temp;
 }
 
-//---------------------------------------------------------------------------------------//
-//---------------------------------------------------------------------------------------//
-
-//configure object and connections
+//configure sketch variables
 void modbusMaster::config(HardwareSerial * hwSerial, uint8_t TxEnPin, uint16_t pollInterval) {
-  _state = STOP;
+  _hwSerial = hwSerial;
   _TxEnablePin = TxEnPin;
   pinMode(_TxEnablePin, OUTPUT);
-  _hwSerial = hwSerial;
   _pollInterval = pollInterval - 1;
-  _totalSensors = 0;
-  for (uint8_t i = 0; i < MAX_SENSORS; i++)
-    _mbSensorsPtr[i] = 0;
+  _state = STOP;
+  MODBUS_SERIAL_PRINT(_totalSensors); MODBUS_SERIAL_PRINTLN(" total sensors connected at config");
 }
+
 
 //------------------------------------------------------------------------------
 // Connect a modbusSensor to the modbusMaster array of queries
@@ -95,6 +90,7 @@ void modbusMaster::connect(modbusSensor * mbSensor) {
     _mbSensorsPtr[_totalSensors] = mbSensor;
     _totalSensors++;
   }
+  return;
 }
 
 //------------------------------------------------------------------------------
@@ -103,6 +99,7 @@ void modbusMaster::disconnect(modbusSensor * mbSensor) {
   uint8_t i = 0;
   while (i < _totalSensors) {
     if (_mbSensorsPtr[i] == mbSensor)  {
+      MODBUS_SERIAL_PRINT(i); MODBUS_SERIAL_PRINTLN("  sensor disconnected");
       while (i < _totalSensors - 1) {
         _mbSensorsPtr[i] = _mbSensorsPtr[i + 1]; //shift down pointers one position
       }
@@ -116,51 +113,48 @@ void modbusMaster::disconnect(modbusSensor * mbSensor) {
 //------------------------------------------------------------------------------
 // begin communication using ModBus protocol over RS485
 void modbusMaster::begin(uint16_t baudrate, uint8_t byteFormat) {
-  if (baudrate > 19200) _T2_5 = 1250;
-  else                  _T2_5 = 27500000 / baudrate;
-  // 2400 bauds --> 11458 us; 9600 bauds --> 2864 us
-
+  if (baudrate > 19200)
+    _T2_5 = 1250;
+  else
+    _T2_5 = 27500000 / baudrate; // 2400 bauds --> 11458 us; 9600 bauds --> 2864 us
   (*_hwSerial).begin(baudrate, byteFormat);
   _state = SEND;
   digitalWrite(_TxEnablePin, LOW);
 }
 
 //------------------------------------------------------------------------------
-// end communication
-void modbusMaster::end() {
+// end communication over serial port
+inline void modbusMaster::end() {
   _state = STOP;
   (*_hwSerial).end();
   digitalWrite(_TxEnablePin, LOW);
 }
 
 //------------------------------------------------------------------------------
-// Finite State Machine core, return 'true' when all queries has been processed
+// Finite State Machine core,
 boolean modbusMaster::available() {
   static uint8_t  indexSensor = 0;                // index of arrray of sensors
-  static uint8_t  frameSize;                      // size of the answer frame
+  static uint8_t  frameSize;                      // size of the RX frame
   static uint32_t tMicros;                        // time to check between characters in a frame
-  static uint32_t nowMillis = millis();
-  static uint32_t lastPollMillis = nowMillis;     // time to check poll interval
-  static uint32_t sendMillis = nowMillis;         // time to check timeout interval
-  static uint32_t receivedMillis = nowMillis;     // time to check waiting interval
+  uint32_t nowMillis;
 
   switch (_state) {
     //-----------------------------------------------------------------------------
     case SEND:
 
       if (indexSensor < _totalSensors) {
-        // MAX485 Transmission mode
         digitalWrite(_TxEnablePin, HIGH);
-        sendFrame((*_mbSensorsPtr[indexSensor])._frame, (*_mbSensorsPtr[indexSensor])._frameSize);
-        //(*_mbSensorsPtr[indexSensor]).sendFrame(_hwSerial);
-
+        uint8_t *frame = (*_mbSensorsPtr[indexSensor])._frame;
+        uint8_t frameSize = (*_mbSensorsPtr[indexSensor])._frameSize;
+        MODBUS_SERIAL_PRINTLN(indexSensor);
+        MODBUS_SERIAL_PRINTLN(frameSize);
+        sendFrame(frame, frameSize);
         _state = SENDING;
         return false;
       }
       else {
         indexSensor = 0;
         _state = WAITING_NEXT_POLL;
-        // Only at this point available() returns true,
         return true;
       }
 
@@ -179,7 +173,7 @@ boolean modbusMaster::available() {
         _state = RECEIVING;
 
         //starts  slave timeOut
-        sendMillis = millis();
+        _timeoutMillis = millis();
         frameSize = 0;
       }
       return false;
@@ -188,8 +182,9 @@ boolean modbusMaster::available() {
     case RECEIVING:
 
       if (!(*_hwSerial).available()) {
-        if (millis() - sendMillis > TIMEOUT) {
+        if (millis() - _timeoutMillis > TIMEOUT) {
           (*_mbSensorsPtr[indexSensor])._status = MB_TIMEOUT;
+          (*_mbSensorsPtr[indexSensor]).printStatus();
           indexSensor++;
           _state = SEND;
         }
@@ -201,11 +196,12 @@ boolean modbusMaster::available() {
         tMicros = micros();
       }
       else {
-        if (micros() - tMicros > _T2_5) { // inter-character time exceeded
+        if (micros() - tMicros > _T2_5) {
           readBuffer(frameSize);
-          (*_mbSensorsPtr[indexSensor]).processBuffer(_buffer, frameSize);
+          (*_mbSensorsPtr[indexSensor]).processBuffer(_rx_buffer, frameSize);
+          (*_mbSensorsPtr[indexSensor]).printStatus();
           indexSensor++;
-          receivedMillis = millis(); //starts waiting interval to next request
+          _waitingMillis = millis(); //starts waiting interval to next request
           _state = IDLE;
         }
       }
@@ -213,15 +209,15 @@ boolean modbusMaster::available() {
 
     //-----------------------------------------------------------------------------
     case IDLE:
-      if (millis() - receivedMillis > WAITING_INTERVAL)
+      if (millis() - _waitingMillis > WAITING_INTERVAL)
         _state = SEND;
       return false;
 
     //-----------------------------------------------------------------------------
     case WAITING_NEXT_POLL:
       nowMillis = millis();
-      if ((nowMillis - lastPollMillis) > _pollInterval) {
-        lastPollMillis = nowMillis;
+      if ((nowMillis - _lastPollMillis) > _pollInterval) {
+        _lastPollMillis = nowMillis;
         _state = SEND;
       }
       return false;
@@ -230,95 +226,86 @@ boolean modbusMaster::available() {
     case STOP:   // do nothing
 
       return false;
-
   }
 }
 
 //-----------------------------------------------------------------------------
 //
-inline void modbusMaster::sendFrame(uint8_t *frame, uint8_t frameSize) {
+void modbusMaster::sendFrame(uint8_t *frame, uint8_t frameSize) {
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT(F(" MASTER:"));
 
   (*_hwSerial).write(frame, frameSize);
 
 #ifdef MODBUS_SERIAL_OUTPUT
-  for (uint8_t i = 0; i < frameSize; i++) {
-    if (frame[i] < 0x10)
+  for (uint8_t index = 0; index < frameSize; index++) {
+    if (frame[index] < 0x10)
       Serial.print(F(" 0"));
     else
       Serial.print(F(" "));
-    Serial.print(frame[i], HEX);
+    Serial.print(frame[index], HEX);
   }
+  Serial.print("    ");
+  Serial.println(millis());
 #endif
-  MODBUS_SERIAL_PRINT("    ");
-  MODBUS_SERIAL_PRINTLN(millis());
 }
 
 //-----------------------------------------------------------------------------
-//
 inline void modbusMaster::readBuffer(uint8_t frameSize) {
 
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT("  SLAVE:");
-  (*_hwSerial).readBytes(_buffer, frameSize);
+
+  (*_hwSerial).readBytes(_rx_buffer, frameSize);
+
 #ifdef MODBUS_SERIAL_OUTPUT
   for (uint8_t index = 0; index < frameSize; index++) {
-    if (_buffer[index] < 0x10)
+    if (_rx_buffer[index] < 0x10)
       Serial.print(F(" 0"));
     else
       Serial.print(F(" "));
-    Serial.print(_buffer[index], HEX);
+    Serial.print(_rx_buffer[index], HEX);
   }
-  MODBUS_SERIAL_PRINT(" ");
-  MODBUS_SERIAL_PRINTLN(millis());
+  Serial.print(" ");
+  Serial.println(millis());
 #endif
 }
 
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
+// Create an instance of modbusMaster
+modbusMaster MBSerial;
 
-// Constructor,
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// Constructor
 modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue, uint8_t fc) {
-
+  este = (uint16_t *)this;
+  // reserve space to new struct of value
   _value = new uint8_t[sizeofValue];
+  // pointer to the first byte 
   uint8_t *ptr = _value;
-  for (int count = sizeofValue; count; --count) *ptr++ = 0;
-  switch (fc) {
-    case PRESET_MULTIPLE_REGISTERS:
-    case READ_HOLDING_REGISTERS:
-      _frame = new uint8_t[9 + sizeofValue]; // reserve space for fc PRESET_MULTIPLE_REGISTERS
-      _frame[1] = READ_HOLDING_REGISTERS;
-      break;
+  // reset content
+//  for (int count = sizeofValue; count; --count) *ptr++ = 0;
 
-    case READ_INPUT_REGISTERS:
-      _frame = new uint8_t[8];
-      _frame[1] = READ_INPUT_REGISTERS;
-      break;
-
-    default:
-      // exit without connect to MBSerial
-      _frame = 0;
-      _frameSize = 0;
-      _status = MB_INVALID_FC;
-      return;
-  }
   _frameSize = 8;
+  _frame = new uint8_t[8];
+
   _frame[0] = id;
+  _frame[1] = READ_INPUT_REGISTERS;
   _frame[2] = adr >> 8;
   _frame[3] = adr & 0x00FF;
-  _frame[4] = 0x00;         // Always, registers < 16
-  _frame[5] = sizeofValue / 2;
+  _frame[4] = 0x00;
+  _frame[5] = sizeofValue/2;
   uint16_t crc = calculateCRC(_frame, 6);
   _frame[6] = crc & 0x00FF;
   _frame[7] = crc >> 8;
-
+ 
   _status = MB_TIMEOUT;
   _hold = hold;
-  connect();
+
+  MBSerial.connect(this);
 }
 
-//-----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 //Process RX buffer
 void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
 
@@ -359,7 +346,7 @@ void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
     case READ_INPUT_REGISTERS:
       // check byte count equals to registers request
       if (rxFrame[2] == _frame[2] * 2) {
-        uint8_t *ptr = (uint8_t *)_value;
+        uint8_t *ptr = (uint8_t *) &_value;
         ptr += rxFrame[2] - 1;            // object last byte
         uint8_t i = 3;
         for (int count = rxFrame[2]; count; --count, i++, ptr--) *ptr = rxFrame[i];
@@ -381,7 +368,7 @@ void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
       return;
   }
 }
-
+/*
 //------------------------------------------------------------------------------
 // Construct Tx frame, send it, receive response and process it, reconstruct READ frame
 void modbusSensor::processPreset(const uint8_t *ptr, uint8_t objectSize) {
@@ -417,18 +404,18 @@ void modbusSensor::processPreset(const uint8_t *ptr, uint8_t objectSize) {
   _frame[6] = crc & 0x00FF;
   _frame[7] = crc >> 8;
   _frameSize = 8;
-}
+}*/
 
 //------------------------------------------------------------------------------
-// read value
+// read value in defined units
 float modbusSensor::read() {
   if (_status == MB_TIMEOUT)
     switch (_hold) {
-      case CHANGE_TO_ZERO: return 0;
-      case CHANGE_TO_ONE: return 1;
+      case CHANGE_TO_ZERO: return 0.0;
+      case CHANGE_TO_ONE: return 1.0;
       case HOLD_VALUE:;
     }
-  return (float) * _value;
+  return (float) *_value;
 }
 
 //------------------------------------------------------------------------------
@@ -446,7 +433,6 @@ void modbusSensor::processRead(uint8_t *ptr, const uint8_t objectSize) {
   const uint8_t *e = _value;
   for (int count = objectSize; count; --count, ++e) *ptr++ = *e;
 }
-
 
 //------------------------------------------------------------------------------
 // print status message
@@ -491,6 +477,14 @@ uint8_t modbusSensor::printStatus() {
     case MB_EXCEPTION:
       Serial.println(F("Exception"));
       return _status;
+    default:
+      Serial.println ("** ERROR **");
   }
 }
+
+
+//---------------------------------------------------------------------------------------//
+//---------------------------------------------------------------------------------------//
+
+
 

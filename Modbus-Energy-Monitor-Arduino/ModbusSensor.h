@@ -1,10 +1,9 @@
 /**********************************************************************
   ModbusSensor.h
-  create ModbusSensor and ModbusMaster classes to communicate using
-  Modbus RTU protocol with diferent slaves, mainly Eastron SMD120, SDM220
-  and SDM630.
+  create ModbusSensor and ModbusMaster classes to process values from
+  a Eastron SMD120 and family.
 
-  version 0.5 BETA 4/01/2016
+  version 0.5.3 BETA 09/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -19,14 +18,12 @@
 // The maximum number of bytes in a modbus packet is 256 bytes.
 // The serial buffer limits this to 128 bytes.
 // We can reduce it to maximum data sending by a slave SMD120 9 bytes, SMD 630 is 85 bytes
-// Three-phase meters are 3 values, 6 registers and 12 bytes, plus 5 frame bytes, total 17
-// You can even request 6 contiguous values, 12 registers, 24 bytes plus 5 frame bytes equals to 29 bytes
+// Three phase meters are 3 values, 6 registers and 12 bytes, plus 5 frame bytes, total 17
 #define BUFFER_SIZE      32
 #define TIMEOUT          110  // time to fail a request 
 #define WAITING_INTERVAL 40   // time required by SDM120 to be prepared to receive a new request
 
 // What happens when _status is diferent to MB_VALID_DATA?
-// in case of offline device (MB_TIMEOUT) read value holds or changes to ...
 #define CHANGE_TO_ZERO 0x00
 #define CHANGE_TO_ONE  0x01
 #define HOLD_VALUE     0xFF
@@ -52,17 +49,36 @@
 
 // forward definition
 class modbusSensor;
-uint16_t calculateCRC(uint8_t *array, uint8_t num);
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 class modbusMaster {
-  public:
-    // constructor
-    //    modbusMaster();
+  protected:
+    HardwareSerial  *_hwSerial;
+    modbusSensor    *_mbSensorsPtr[MAX_SENSORS]; // array of modbusSensor's pointers
+    uint8_t  _TxEnablePin;              // pin to enable transmision in MAX485
+    uint8_t  _totalSensors;             // constant, max number of sensors to poll
+    uint16_t _pollInterval;             // constant, time between polling same data
+    uint8_t  _rx_buffer[BUFFER_SIZE];   // buffer to process rececived frame
+    uint8_t  _state;                    // Modbus FSM state (SENDING, RECEIVING, STANDBY, WAITING_NEXT_POLL)
+    uint32_t _T2_5;                     // time between characters in a frame, in microseconds
+    uint32_t _lastPollMillis;           // time to check poll interval
+    uint32_t _timeoutMillis;            // time to check timeout interval
+    uint32_t _waitingMillis;            // time to check waiting interval
 
-    // configure serial communcation
-    void config(HardwareSerial *hwSerial, uint8_t TxEnPin, uint16_t pollInterval);
+    inline void sendFrame(uint8_t *frame, uint8_t frameSize);
+    inline void readBuffer(uint8_t frameSize);
+
+  public:
+    //constructor
+    modbusMaster() {
+      _totalSensors = 0;
+      for (uint8_t i = 0; i < MAX_SENSORS; i++)
+        _mbSensorsPtr[i] = 0;
+    };
+
+    //constructor
+    void config(HardwareSerial *mbSerial, uint8_t TxEnPin, uint16_t pollInterval);
 
     // Connect a modbusSensor to modbusMaster array of queries
     void connect(modbusSensor *mbSensor);
@@ -76,51 +92,50 @@ class modbusMaster {
     // end communication over serial port
     void end();
 
-    // Finite State Machine core, process FSM.
+    // Finite State Machine core, process FSM
     // It returns 'true' when finish to request all the array of modbusSensors.
     // Non-blocking function, put the instrucction in a loop function to make the proccess work properly
     boolean available();
+};
 
-  protected:
-    inline void sendFrame(uint8_t *frame, uint8_t frameSize);
-    inline void readBuffer(uint8_t frameSize);
-    uint8_t  _state;                    // Modbus FSM state (SENDING, RECEIVING, STANDBY, WAINTING_NEXT_POLL or STOP)
-    uint8_t  _TxEnablePin;              // pin to enable transmision in MAX485
-    uint8_t  _buffer[BUFFER_SIZE];      // buffer to process rececived frame
-    uint8_t  _totalSensors;             // max number of sensors to poll
-    uint16_t _pollInterval;             // time between polling same data
-    uint32_t _T2_5;                     // time between characters in a frame, in microseconds
-    HardwareSerial  *_hwSerial;
-    modbusSensor    *_mbSensorsPtr[MAX_SENSORS]; // array of modbusSensor's pointers
-} ;
-
-//predefined instance to poll, collect and process values trough modbus RTU protocol
-
-static modbusMaster MBSerial;
+extern modbusMaster MBSerial;
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 class modbusSensor {
+  protected:
+    uint8_t * _value;
+    uint8_t * _frame;
+    uint8_t   _frameSize;
+    uint8_t   _status;
+    uint8_t   _hold;
+
+    void processPreset(uint8_t *ptr, uint8_t objectSize);
+    void processRead(uint8_t *ptr, uint8_t objectSize);
+
+    //MBSerial.available need access to _frame, _frameSize and _status variables
+    friend boolean modbusMaster::available();
+
   public:
-    // Constructor,
+    uint16_t *este;
+    // Constructor
     modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue, uint8_t fc);
 
-    // Constructor, implicit fc READ_INPUT_REGISTERS
+   // Constructor
     modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeofValue) {
-      modbusSensor(id, adr, hold, sizeofValue, 4);
+      modbusSensor(id, adr, hold, sizeofValue, READ_INPUT_REGISTERS);
     };
-
-    // Constructor, implicit MBSerial, fc 0x4, register size 2, datatype float
-    modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
+  
+    // Constructor
+        modbusSensor(uint8_t id, uint16_t adr, uint8_t hold) {
       modbusSensor(id, adr, hold, 4, READ_INPUT_REGISTERS);
     };
-
 
     // Destructor
     ~modbusSensor() {
       delete[] _value;
       delete[] _frame;
-      disconnect();
+      MBSerial.disconnect(this);
     }
 
     // Connect to MBSerial array of sensors
@@ -133,16 +148,16 @@ class modbusSensor {
       MBSerial.disconnect(this);
     };
 
-    // Process Received frame and generate response value and status
+    //Process RX buffer
     void processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize);
 
     // Preset sensor value, fc 0x10, only holding registers defined with fc 0x03
     // complete funtion to make and send the frame and process response, check status
     template < typename T > void preset(const T &t) {
-      processPreset((uint8_t *) &t, sizeof(T));
+      //      processPreset((uint8_t *) &t, sizeof(T));
     };
-
-    // read a float value from object buffer, non-blocking function
+   
+    // read value in defined units
     float read();
 
     // read every struct value from object buffer, non-blocking function
@@ -151,23 +166,8 @@ class modbusSensor {
       return t;
     }
 
-    // get status of the value
-    uint8_t getStatus() {
-      return _status;
-    };
-
     // print status message
     uint8_t printStatus();
-
-  protected:
-    void processPreset(const uint8_t *ptr, const uint8_t objectSize);
-    void processRead(uint8_t *ptr, const uint8_t objectSize);
-    uint8_t *_value;      // pointer to an object value
-    uint8_t *_frame;      // pointer to TX frame
-    uint8_t  _frameSize;  // size of the TX frame
-    uint8_t  _status;     // returned status
-    uint8_t  _hold;       // offline value
-    friend boolean modbusMaster::available(); //access _status variable
 };
 
 #endif
