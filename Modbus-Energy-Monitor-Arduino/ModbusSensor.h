@@ -3,7 +3,7 @@
   create ModbusSensor and ModbusMaster classes to process values from
   a Eastron SMD120 and family.
 
-  version 0.5.3 BETA 09/01/2016
+  version 0.5.4 BETA 10/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -41,6 +41,7 @@
 #define MB_INVALID_BUFF   0xE4
 #define MB_INVALID_ADR    0xE5
 #define MB_INVALID_DATA   0xE6
+#define MB_MASTER_STOP    0xE7
 #define MB_ILLEGAL_FC     0x01
 #define MB_ILLEGAL_ADR    0x02
 #define MB_ILLEGAL_DATA   0x03
@@ -104,11 +105,11 @@ extern modbusMaster MBSerial;
 //------------------------------------------------------------------------------
 class modbusSensor {
   protected:
-    uint8_t * _value;
-    uint8_t * _frame;
-    uint8_t   _frameSize;
-    uint8_t   _status;
-    uint8_t   _hold;
+    uint8_t * _value;     // pointer to a dinamic allocated object, size inside _frame[5] 
+    uint8_t * _frame;     // pointer to a dinamic allocated array,
+    uint8_t   _frameSize; // size of the _frame, 8 in read function, 9+sizeof(T) in preset function
+    uint8_t   _status;    // register of the result of communication
+    uint8_t   _hold;      // predefined behaiviour in case of timeout exception
 
     void processPreset(uint8_t *ptr, uint8_t objectSize);
     void processRead(uint8_t *ptr, uint8_t objectSize);

@@ -2,7 +2,7 @@
   ModbusSensor class
 
 
-  version 0.5.3 BETA 09/01/2016
+  version 0.5.4 BETA 10/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -72,6 +72,7 @@ uint16_t calculateCRC(uint8_t *array, uint8_t num) {
   return temp;
 }
 
+//------------------------------------------------------------------------------
 //configure sketch variables
 void modbusMaster::config(HardwareSerial * hwSerial, uint8_t TxEnPin, uint16_t pollInterval) {
   _hwSerial = hwSerial;
@@ -170,7 +171,7 @@ boolean modbusMaster::available() {
         digitalWrite(_TxEnablePin, LOW);
         _state = RECEIVING;
 
-        //starts  slave timeOut
+        //starts  slave's timeOut
         _timeoutMillis = millis();
         frameSize = 0;
       }
@@ -225,9 +226,11 @@ boolean modbusMaster::available() {
       return false;
 
     //-----------------------------------------------------------------------------
-    case STOP:   // do nothing
-
-      return false;
+    case STOP:
+      for (;indexSensor < _totalSensors;indexSensor++)
+        (*_mbSensorsPtr[indexSensor])._status = MB_MASTER_STOP;
+      indexSensor = 0;
+      return true;
   }
 }
 
@@ -316,7 +319,7 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeo
   _frame[6] = crc & 0x00FF;
   _frame[7] = crc >> 8;
 
-  _status = MB_TIMEOUT;
+  _status = MB_MASTER_STOP;
   _hold = hold;
 
   MBSerial.connect(this);
@@ -345,7 +348,7 @@ void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
     return;
   }
 
-  // check exception error in function code
+  // check slave's exception in function code
   if (rxFrame[1] & 0x80 == 0x80) {
     _status = rxFrame[2]; // see exception codes in define area or printStatus()
     return;
@@ -364,7 +367,7 @@ void modbusSensor::processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize) {
       // check byte count equals to registers request
       if (rxFrame[2] == _frame[2] * 2) {
         uint8_t *ptr = (uint8_t *) &_value;
-        ptr += rxFrame[2] - 1;            // object last byte
+        ptr += rxFrame[2] - 1;            // pointer to object last byte
         uint8_t i = 3;
         for (int count = rxFrame[2]; count; --count, i++, ptr--) *ptr = rxFrame[i];
         _status = MB_VALID_DATA;
@@ -436,7 +439,7 @@ float modbusSensor::read() {
 }
 
 //------------------------------------------------------------------------------
-// process status and return the right answer
+// process status and return the predetermined response
 void modbusSensor::processRead(uint8_t *ptr, const uint8_t objectSize) {
   if (_status == MB_TIMEOUT)
     switch (_hold) {
@@ -471,13 +474,16 @@ uint8_t modbusSensor::printStatus() {
       Serial.println("incorrect CRC");
       return _status;
     case MB_INVALID_BUFF:
-      Serial.println("No valid buffer");
+      Serial.println("Invalid buffer size");
       return _status;
     case MB_INVALID_ADR:
       Serial.println("No valid address");
       return _status;
     case MB_INVALID_DATA:
       Serial.println("No valid data");
+      return _status;
+    case MB_MASTER_STOP:
+      Serial.println("Master in STOP mode");
       return _status;
     case MB_ILLEGAL_FC:
       Serial.println("Exception: Illegal FC");

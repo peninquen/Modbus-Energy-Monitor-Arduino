@@ -1,0 +1,64 @@
+########################################
+# Syntax Coloring Map for ModbusSensor
+# Datatypes (KEYWORD1)
+########################################
+modbusSensor			KEYWORD1
+modbusMaster			KEYWORD1
+
+
+########################################
+# Methods and Functions (KEYWORD2)
+########################################
+MBSerial			KEYWORD2
+sendFrame			KEYWORD2
+readBuffer			KEYWORD2
+config				KEYWORD2
+connect				KEYWORD2
+disconnect			KEYWORD2
+begin				KEYWORD2
+end				KEYWORD2
+available			KEYWORD2
+processPreset			KEYWORD2
+processRead			KEYWORD2
+processBuffer			KEYWORD2
+preset				KEYWORD2
+read				KEYWORD2
+printStatus			KEYWORD2
+calculateCRC			KEYWORD2
+
+
+
+
+########################################
+# Constants (LITERAL1)
+########################################
+MAX_SENSORS			LITERAL1
+BUFFER_SIZE     		LITERAL1
+TIMEOUT				LITERAL1
+WAITING INTERVAL		LITERAL1
+CHANGE_TO_ZERO			LITERAL1
+CHANGE_TO_ONE			LITERAL1
+HOLD_VALUE			LITERAL1
+READ_HOLDING_REGISTERS		LITERAL1
+READ_INPUT_REGISTERS		LITERAL1
+PRESET_MULTIPLE_REGISTERS	LITERAL1
+MB_VALID_DATA			LITERAL1
+MB_INVALID_ID			LITERAL1
+MB_INVALID_FC			LITERAL1
+MB_TIMEOUT			LITERAL1
+MB-INVALID_CRC			LITERAL1
+MB_INVALID_BUFF			LITERAL1
+MB_INVALID_ADR			LITERAL1
+MB_INVALID_DATA			LITERAL1
+MB_MASTER_STOP			LITERAL1
+MB_ILLEGAL_FC			LITERAL1
+MB_ILLEGAL_ADR			LITERAL1
+MB_ILLEGAL_DATA			LITERAL1
+MB_SLAVE_FAIL			LITERAL1
+MB_EXCEPTION			LITERAL1
+STOP				LITERAL1
+SEND				LITERAL1
+SENDING				LITERAL1
+RECIVING			LITERAL1
+IDLE				LITERAL1
+WAITING_NEXT_POLL		LITERAL1
