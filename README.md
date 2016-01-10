@@ -18,6 +18,7 @@ Next objetives:
 - Document library functions and example sketchs
 
 Any comments, bugs and issues are wellcome.
+___________________________________________________________________________________________________________________
 
 Librería arduino para comunicar con el protocolo Modbus RTU sobre RS485 y gestionar datos de un medidor de energía, en principio de la marca EASTRON SDM120, SDM220, SDM530 y SDM630.
 Se ha implementado la gestión de las funciones 0x03, 0x04 y 0x10 dl protocolo Moddbus. No se ha implementado las funciones de 'coils'.
