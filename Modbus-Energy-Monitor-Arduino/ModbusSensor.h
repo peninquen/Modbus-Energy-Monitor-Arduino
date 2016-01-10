@@ -112,6 +112,7 @@ class modbusSensor {
 
     void processPreset(uint8_t *ptr, uint8_t objectSize);
     void processRead(uint8_t *ptr, uint8_t objectSize);
+    void processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize);
 
     //MBSerial.available need access to _frame, _frameSize and _status variables
     friend boolean modbusMaster::available();
@@ -143,13 +144,10 @@ class modbusSensor {
       MBSerial.disconnect(this);
     };
 
-    //Process RX buffer
-    void processBuffer(uint8_t *rxFrame, uint8_t rxFrameSize);
-
     // Preset sensor value, fc 0x10, only holding registers defined with fc 0x03
     // complete funtion to make and send the frame and process response, check status
     template < typename T > void preset(const T &t) {
-      //      processPreset((uint8_t *) &t, sizeof(T));
+      processPreset((uint8_t *) &t, sizeof(T));
     };
 
     // read value in defined units
