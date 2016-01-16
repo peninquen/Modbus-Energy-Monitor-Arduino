@@ -33,8 +33,8 @@ La librería ModbusSensor se compone de los siguientes archivos:
 ##Objetos y métodos
 ``modbusMaster``
 
-Para la clase ``modbusmaster`` se crea una única instancia, llamada *MBSerial*. Se encarga de gestionar el canal serie al que está conectado un chip tipo MAX485.
-Agrega una lista de punteros a objetos *modbusSensor*, a los que llama consecutivamente 'en ráfaga' cada intervalo de tiempo.
+Para la clase ``modbusmaster`` se crea una única instancia, llamada ``MBSerial``. Se encarga de gestionar el canal serie al que está conectado un chip tipo MAX485.
+Agrega una lista de punteros a objetos ``modbusSensor``, a los que llama consecutivamente 'en ráfaga' cada intervalo de tiempo.
 
 *Métodos:*
 
