@@ -2,8 +2,7 @@
 ##Alcance de la librería
 Permitir la comunicación de un Arduino o ESP8266 en modo máster con dispositivos esclavos empleando un canal RS485 half-duplex.
 Los esclavos son del tipo monitores de energía, en particular EASTRON modelos SDM120, SDM220, SDM320, SDM530M Y SDM630.
-No utiliza interrupciones, excepto las empleadas por el puerto serie y la UART. El proceso de comunicación permite utilizar la librería
-con otros procesos en paralelo sin latencia.
+No utiliza interrupciones, excepto las empleadas por el puerto serie y la UART. El proceso de comunicación permite utilizar la librería con otros procesos en paralelo sin latencia.
 
 Las funciones implementadas son:
  - 0x03 READ HOLDING REGISTERS
@@ -34,7 +33,7 @@ La librería ModbusSensor se compone de los siguientes archivos:
 ``modbusMaster``
 
 Para la clase ``modbusmaster`` se crea una única instancia, llamada ``MBSerial``. Se encarga de gestionar el canal serie al que está conectado un chip tipo MAX485.
-Agrega una lista de punteros a objetos ``modbusSensor``, a los que llama consecutivamente 'en ráfaga' cada intervalo de tiempo.
+Agrega una lista de punteros a objetos ``modbusSensor``, a los que llama consecutivamente en cada petición.
 
 *Métodos:*
 
@@ -69,7 +68,7 @@ En caso de un proceso secuencial, en el que se requiera bloquear el proceso hast
 
 ``modbusSensor``
 
-El objeto ``modbusSensor`` está pensado para contener un valor o grupo de valores de un dispositivo esclavo modbus. 
+El objeto ``modbusSensor`` está pensado para contener un valor o grupo de valores de un dispositivo esclavo modbus. En caso de varios valores deben almacenarse en registros consecutivos.
 Dentro de cada instancia modbusSensor el valor o valores se almacena como una secuencia de bytes que refleja el contenido de los registros del esclavo.
 
 Los dispositivos Eastron SDM almacenan los datos como valores ``float`` según IEEE 754, ocupan 4 bytes en 2 registros consecutivos. 
