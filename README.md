@@ -5,8 +5,8 @@ Implemented function codes 0x03, 0x04 and 0x10. No coils functions have been imp
 Achieved milestones:
 - Accesible to basic users. All modbus protocol issues are inside the classes. Simple messages to access data values and parameters.
 - Poll design. Basic function repeat the array of queries to poll data values.
-- Multi-thread, non-blocking behaviour. You can use it embebed with different process without delay.
-- Escalable. Eastron energy monitors works with float values. modbusSensor object can do requests of single float values and contiguous float values, but also every struct of data that your slave's registers stores.
+- Event-driven, non-blocking behaviour. You can use it embebed with different process without delay.
+- Escalable. Eastron energy monitors works with ``float`` values. modbusSensor object can do requests of single ``float`` values and contiguous ``float`` values, but also every ``struct`` of data that your slave's registers stores.
 - Configurable. You can configure SDM's holding registers
 - Exception error process. Adjust response in case of offline status due to power outage. Other errors are user configurable.
 
@@ -14,7 +14,7 @@ Next objetives:
 - Define other energy monitors, like Circutor CVM-MINI
 - Implement nodeMCU and other ESP8266 library version.
 - Explore other slave modbus RTU equipment
-- Create 'modbusSlave' object, use Arduino as a slave using Modbus RTU protocol. 
+- Create``'modbusSlave`` object, use Arduino as a slave using Modbus RTU protocol. 
 - Document library functions and example sketchs
 
 Any comments, bugs and issues are wellcome.
