@@ -50,7 +50,10 @@ Para procesos en bucle:
 ```
 void loop() {
   ...
-  MBSerial.sendRequest();
+  if (currentMillis - previousMillis < POLL_INTERVAL)
+    if( MBSerial.sendRequest()) 
+      previousMillis = currentMillis;
+
   if (MBSerial.available()) {
     energy = enrg.read();
   }
