@@ -1,12 +1,12 @@
 /**********************************************************************
-* ModbusEnergyMonitor example
-* An example to collect data from a Modbus energy monitor using ModbusSensor class
-* to datalogger, include a RTC DS3231 and a SD card
-* version 0.1 ALPHA 14/12/2015
-* 
-* Author: Jaime García  @peninquen
-* License: Apache License Version 2.0.
-*
+  ModbusEnergyMonitor example
+  An example to collect data from a Modbus energy monitor using ModbusSensor class
+  to datalogger, include a RTC DS3231 and a SD card
+  version 0.4 BETA 31/12/2015
+
+  Author: Jaime García  @peninquen
+  License: Apache License Version 2.0.
+
 **********************************************************************/
 /*
 
@@ -24,33 +24,18 @@
 #endif
 
 #include "ModbusSensor.h"
+#include "SDMdefines.h"
 
-#define MB_SERIAL_PORT &Serial   // Arduino has only one serial port, Mega has 3 serial ports.
+#define MB_SERIAL_PORT &Serial2   // Arduino has only one serial port, Mega has 3 serial ports.
 // if use Serial 0, remember disconect Tx (pin0) when upload sketch, then re-conect
 #define MB_BAUDRATE       2400          // b 2400
 #define MB_BYTEFORMAT     SERIAL_8N2    // Prty n
 #define TxEnablePin       17
-#define TIMEOUT           100
-
 
 #define ID_1  1                       // id 001  modbus id of the energy monitor
 #define REFRESH_INTERVAL  5000        // refresh time, 5 SECONDS
 #define WRITE_INTERVAL 20000UL        // values send to serial port, 1 minute ( 60 * 1000)
-#define KWH_2_WS 36000000 
-
-// Direcciones registros de datos solo lectura. Valores tipo float.
-// Utilizar funcion 04 lectura, numero de registros 16-bits 2.
-
-#define VOL_ADR 0x0000    // VOLTAJE.
-#define CUR_ADR 0x0006    // CORRIENTE.
-#define POW_ADR 0x000C    // POTENCIA ACTIVA. 
-#define APO_ADR 0x0012    // Potencia Aparente.
-#define PFA_ADR 0x001E    // Factor de potencia.
-#define FRE_ADR 0x0046    // Frecuencia.
-#define PEN_ADR 0x0048    // ENERGIA IMPORTADA KWH
-#define REN_ADR 0x004A    // Energia exportada.
-#define TEN_ADR 0x0156    // Energia activa Total.
-#define TRE_ADR 0x0158    // Energia reactiva Total.
+#define KWH_2_WS 36000000
 
 // multiplication factor, store value as an integer
 #define VOL_FAC 10
@@ -61,16 +46,14 @@
 #define ENE_FAC 100
 
 
-modbusMaster MBserial(MB_SERIAL_PORT, TxEnablePin);  // instance to collect data using Modbus protocol over RS485
-
-//variables to poll, process and send values
-modbusSensor volt(&MBserial, ID_1, VOL_ADR, CHANGE_TO_ZERO);
-modbusSensor curr(&MBserial, ID_1, CUR_ADR, CHANGE_TO_ZERO);
-modbusSensor pwr(&MBserial, ID_1, POW_ADR, CHANGE_TO_ZERO);
-modbusSensor enrg(&MBserial, ID_1, PEN_ADR, HOLD_VALUE);
-modbusSensor freq(&MBserial, ID_1, FRE_ADR, CHANGE_TO_ZERO);
-modbusSensor aPwr(&MBserial, ID_1, APO_ADR, CHANGE_TO_ZERO);
-modbusSensor pwrFact(&MBserial, ID_1, PFA_ADR, CHANGE_TO_ONE);
+// global variables to poll, process and send values
+modbusSensor volt(ID_1, VOLTAGE, CHANGE_TO_ZERO);
+modbusSensor curr(ID_1, CURRENT, CHANGE_TO_ZERO);
+modbusSensor pwr(ID_1, POWER, CHANGE_TO_ZERO);
+modbusSensor enrg(ID_1, IAENERGY, HOLD_VALUE);
+modbusSensor freq(ID_1, FREQUENCY, CHANGE_TO_ZERO);
+modbusSensor aPwr(ID_1, APOWER, CHANGE_TO_ZERO);
+modbusSensor pwrFact(ID_1, PFACTOR, CHANGE_TO_ONE);
 
 uint16_t voltage, maxVoltage, minVoltage; // integer, factor x10
 uint16_t current, maxCurrent, minCurrent; // integer, factor x100
@@ -86,7 +69,8 @@ boolean       firstData;
 
 void setup() {
   SERIAL_BEGIN(9600);
-  MBserial.begin(MB_BAUDRATE, MB_BYTEFORMAT, TIMEOUT, REFRESH_INTERVAL);
+  MBSerial.config(MB_SERIAL_PORT, TxEnablePin, REFRESH_INTERVAL);
+  MBSerial.begin(MB_BAUDRATE, MB_BYTEFORMAT);
   delay(95);
   SERIAL_PRINTLN("time(s), maxVolt(V), minVolt(V), maxCurr(A) minCurr(A), maxPower(W), minPower(W), maxApPower(VA), minApPower(VA), maxFreq(Hz), minFreq(Hz), AvgPower (W), Energy(Kwh)");
 
@@ -100,14 +84,14 @@ void setup() {
 
 void loop() {
   sei();
-  if (MBserial.available()) {
+  if (MBSerial.available()) {
     voltage = volt.read(VOL_FAC);
     current = curr.read(CUR_FAC);
     power = pwr.read(POW_FAC);
     aPower = aPwr.read(POW_FAC);
     frequency = freq.read(FRE_FAC);
     energy = enrg.read(ENE_FAC);
-    
+
     if (!firstData) {
       if (maxVoltage < voltage) maxVoltage = voltage;
       if (minVoltage > voltage) minVoltage = voltage;
@@ -148,9 +132,9 @@ void loop() {
     SERIAL_PRINT(",");
     SERIAL_PRINT((float)maxVoltage / VOL_FAC, 1);
     SERIAL_PRINT(",");
-    SERIAL_PRINT((float)minVoltage /VOL_FAC, 1);
+    SERIAL_PRINT((float)minVoltage / VOL_FAC, 1);
     SERIAL_PRINT(",");
-    SERIAL_PRINT((float)maxCurrent /CUR_FAC, 2);
+    SERIAL_PRINT((float)maxCurrent / CUR_FAC, 2);
     SERIAL_PRINT(",");
     SERIAL_PRINT((float)minCurrent / CUR_FAC, 2);
     SERIAL_PRINT(",");
@@ -160,7 +144,7 @@ void loop() {
     SERIAL_PRINT(",");
     SERIAL_PRINT((float)maxApower / POW_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINT((float)minApower /POW_FAC, 2);
+    SERIAL_PRINT((float)minApower / POW_FAC, 2);
     SERIAL_PRINT(",");
     SERIAL_PRINT((float)maxFreq / FRE_FAC, 2);
     SERIAL_PRINT(",");
@@ -168,7 +152,7 @@ void loop() {
     SERIAL_PRINT(",");
     SERIAL_PRINT((float)avgPower / ENE_FAC, 2);
     SERIAL_PRINT(",");
-    SERIAL_PRINTLN((float)energy /ENE_FAC, 2);
+    SERIAL_PRINTLN((float)energy / ENE_FAC, 2);
 
   }
 }
