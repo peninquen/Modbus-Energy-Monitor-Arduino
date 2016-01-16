@@ -53,7 +53,7 @@ Métodos:
 En el resto de estados devuelve 'false'. Al no tener interrupcion para activarse, se debe incluir dentro de un bucle.
 
 Para procesos en bucle:
-```
+```c++
 void loop() {
   ...
   if (MBSerial.available()) {
@@ -63,7 +63,7 @@ void loop() {
 }
 ```
 En caso de un proceso secuencial, en el que se requiera bloquear el proceso hasta obtener la respuesta:
-```
+```c++
   modbusSensor id(idNumber, DEVICE_ID, HOLD_VALUE, sizeof(float), READ_HOLDING_REGISTERS);
   while (!MBSerial.available()) {}
   Serial.print("Meter Id: ")); 
