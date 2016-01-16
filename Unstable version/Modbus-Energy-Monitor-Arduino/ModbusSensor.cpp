@@ -30,7 +30,6 @@
 #define SENDING             2
 #define RECEIVING           3
 #define WAITING_TURNAROUND  4
-//#define WAITING_NEXT_POLL   5
 
 /*#define READ_COIL_STATUS          0x01 // Reads the ON/OFF status of discrete outputs (0X references, coils) in the slave.
 #define READ_INPUT_STATUS         0x02 // Reads the ON/OFF status of discrete inputs (1X references) in the slave.
