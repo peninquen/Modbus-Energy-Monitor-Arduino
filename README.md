@@ -38,7 +38,7 @@ Siguientes objetivos:
 - Crear el objeto 'modbusSlave' y sus métodos, de forma que un arduino pueda operar como esclavo sobre Modbus RTU
 - Documentar las funciones y los sketchs de ejemplo.
 
-Cualquier comentarios, incidencias o sugerencias será  bienvenido para mejorar la librería.  
+Cualquier comentario, incidencia o sugerencia será  bien recibida para mejorar la librería.  
 
 * Author: Jaime García  @peninquen
 * License: Apache License Version 2.0.
