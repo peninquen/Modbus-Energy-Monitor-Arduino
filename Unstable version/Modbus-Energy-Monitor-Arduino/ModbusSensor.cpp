@@ -2,7 +2,7 @@
   ModbusSensor class
 
 
-  version 0.5.5 BETA 16/01/2016
+  version 0.5.6 BETA 19/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -10,7 +10,7 @@
 *******************************************************************************/
 //------------------------------------------------------------------------------
 
-#define MODBUS_SERIAL_OUTPUT  //Verbose MODBUS messages and timing
+//#define MODBUS_SERIAL_OUTPUT  //Verbose MODBUS messages and timing
 
 #ifdef MODBUS_SERIAL_OUTPUT
 #define MODBUS_SERIAL_BEGIN(...) Serial.begin(__VA_ARGS__)
@@ -145,17 +145,17 @@ boolean modbusMaster::sendRequest() {
 boolean modbusMaster::available() {
   static uint8_t  frameSize;          // size of the RX frame
   static uint32_t tMicros;            // time to check between characters in a frame
-  uint32_t nowMillis;
+  static uint32_t nowMillis;
 
   switch (_state) {
     //-----------------------------------------------------------------------------
     case IDLE:
-
       if (_indexSensor < _totalSensors) {
         digitalWrite(_TxEnablePin, HIGH);
         uint8_t *frame = (*_mbSensorsPtr[_indexSensor])._frame;
         uint8_t frameSize = (*_mbSensorsPtr[_indexSensor])._frameSize;
         sendFrame(frame, frameSize);
+        tMicros = micros();
         _state = SENDING;
         return false;
       }
@@ -165,21 +165,25 @@ boolean modbusMaster::available() {
     //-----------------------------------------------------------------------------
     case SENDING:
 
-      if ((*_hwSerial).availableForWrite() == SERIAL_TX_BUFFER_SIZE - 1) { //TX buffer empty
-        // time to send last byte and required empty time space
-        delayMicroseconds(_T2_5);
-
-        // clean RX buffer
-        while ((*_hwSerial).available()) (*_hwSerial).read();
-
-        // MAX485 Receiving mode
-        digitalWrite(_TxEnablePin, LOW);
-        _state = RECEIVING;
-
-        //starts  slave's timeOut
-        _timeoutMillis = millis();
-        frameSize = 0;
+      if ((*_hwSerial).availableForWrite() < SERIAL_TX_BUFFER_SIZE - 1) { //TX buffer not empty
+        tMicros = micros();
+        return false;
       }
+       // delayMicroseconds(_T2_5);
+      // time to send last byte and required empty time space
+      if (micros() - tMicros < _T2_5) return false;
+
+      // clean RX buffer
+      while ((*_hwSerial).available()) (*_hwSerial).read();
+
+      // MAX485 Receiving mode
+      digitalWrite(_TxEnablePin, LOW);
+      _state = RECEIVING;
+
+      //starts  slave's timeOut
+      _timeoutMillis = millis();
+      frameSize = 0;
+      
       return false;
 
     //-----------------------------------------------------------------------------
@@ -190,7 +194,7 @@ boolean modbusMaster::available() {
           (*_mbSensorsPtr[_indexSensor])._status = MB_TIMEOUT;
 #ifdef MODBUS_SERIAL_OUTPUT
           (*_mbSensorsPtr[_indexSensor]).printStatus();
-#endif          
+#endif
           _indexSensor++;
           _state = IDLE;
         }
@@ -223,7 +227,7 @@ boolean modbusMaster::available() {
 
     //-----------------------------------------------------------------------------
     case STOP:
-      for (;_indexSensor < _totalSensors;_indexSensor++)
+      for (; _indexSensor < _totalSensors; _indexSensor++)
         (*_mbSensorsPtr[_indexSensor])._status = MB_MASTER_STOP;
       return true;
   }
@@ -234,8 +238,11 @@ boolean modbusMaster::available() {
 void modbusMaster::sendFrame(uint8_t *frame, uint8_t frameSize) {
   MODBUS_SERIAL_PRINT(millis());
   MODBUS_SERIAL_PRINT(" MASTER:");
+  MODBUS_SERIAL_PRINTLN((*_hwSerial).availableForWrite());
 
   (*_hwSerial).write(frame, frameSize);
+
+  MODBUS_SERIAL_PRINTLN((*_hwSerial).availableForWrite());
 
 #ifdef MODBUS_SERIAL_OUTPUT
   for (uint8_t index = 0; index < frameSize; index++) {

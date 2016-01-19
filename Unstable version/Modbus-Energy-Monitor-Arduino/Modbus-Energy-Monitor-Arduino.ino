@@ -9,7 +9,7 @@
 #define TxEnablePin       17
 
 #define ID_1  1                       // id 001  modbus id of the energy monitor
-#define POLL_INTERVAL  5000        // refresh time, 5 SECONDS
+#define POLL_INTERVAL  5000 - 1        // refresh time, 5 SECONDS (adjust 1 ms duty cycle)
 
 
 struct three_phase {
@@ -17,6 +17,7 @@ struct three_phase {
 } voltage, current, power;
 
 float energy;
+boolean dataPrinted;
 
 // global variables to poll, process and send values
 
@@ -27,7 +28,7 @@ modbusSensor pwr(ID_1, POWER, CHANGE_TO_ZERO, sizeof(three_phase), READ_INPUT_RE
 
 //modbusSensor(uint8_t uint16_t adr, uint8_t hold)
 modbusSensor enrg(ID_1, IAENERGY, HOLD_VALUE);
-uint32_t previousMillis = 0;
+uint32_t previousMillis = 10000;
 
 void setup() {
   Serial.begin(9600);
@@ -35,15 +36,18 @@ void setup() {
   MBSerial.config(MB_SERIAL_PORT, TxEnablePin);
   MBSerial.begin(MB_BAUDRATE, MB_BYTEFORMAT);
   Serial.println("time(s),Volt1(V), Volt2(V), Volt3(V), Curr1(A) Curr2(A), Curr3(A), Power1(W), Power2(W), Power3(W), Energy(Kwh)");
+  dataPrinted = false;
 }
 
 void loop() {
   uint32_t currentMillis = millis();
-  if (currentMillis - previousMillis < POLL_INTERVAL)
-    if( MBSerial.sendRequest()) 
+  if (currentMillis - previousMillis > POLL_INTERVAL)
+    if ( MBSerial.sendRequest() == true) {
       previousMillis = currentMillis;
-
-  if (MBSerial.available()) {
+      dataPrinted = false;
+    }
+    
+  if (MBSerial.available() && !dataPrinted) {
     volt.read(voltage);
     curr.read(current);
     pwr.read(power);
@@ -70,6 +74,7 @@ void loop() {
     Serial.print(power.line3, 2);
     Serial.print(",");
     Serial.println(energy, 2);
+    dataPrinted = true;
 
   }
 }

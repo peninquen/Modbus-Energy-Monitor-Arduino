@@ -3,7 +3,7 @@
   create ModbusSensor and ModbusMaster classes to process values from
   a Eastron SMD120 and family.
 
-  version 0.5.5 BETA 16/01/2016
+  version 0.5.6 BETA 19/01/2016
 
   Author: Jaime García  @peninquen
   License: Apache License Version 2.0.
@@ -61,7 +61,7 @@ class modbusMaster {
     uint8_t  _totalSensors;             // constant, max number of sensors to poll
     uint8_t  _indexSensor;              // index number of sensors
     uint8_t  _rx_buffer[BUFFER_SIZE];   // buffer to process rececived frame
-    uint8_t  _state;                    // Modbus FSM state (STOP, SEND, SENDING, RECEIVING, IDLE, WAITING_NEXT_POLL)
+    uint8_t  _state;                    // Modbus FSM state (STOP, IDLE, SENDING, RECEIVING, WAITING_TURNAROUND)
     uint32_t _T2_5;                     // time between characters in a frame, in microseconds
     uint32_t _timeoutMillis;            // time to check timeout interval
     uint32_t _waitingMillis;            // time to check waiting turnaround interval
@@ -90,7 +90,7 @@ class modbusMaster {
     void begin(uint16_t baudrate, uint8_t byteFormat);
 
     // end communication over serial port
-    void end();
+    inline void end();
 
     // Start process to send requests
     boolean sendRequest();
