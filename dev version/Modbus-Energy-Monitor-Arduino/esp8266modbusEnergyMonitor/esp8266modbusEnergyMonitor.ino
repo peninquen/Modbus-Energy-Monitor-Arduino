@@ -10,12 +10,24 @@
 **********************************************************************/
 
 
-//#include <ESP8266WiFi.h>      //ESP library from http://github.com/esp8266/Arduino
+#include <ESP8266WiFi.h>      //ESP library from http://github.com/esp8266/Arduino
+#include <PubSubClient.h>     // MQTT library from https://github.com/knolleary/pubsubclient
 #include "ModbusSensor.h"
 #include "SDMdefines.h"
 
-#define MB_SERIAL_PORT &Serial   // Arduino has only one serial port, Mega has 3 serial ports.
-// if use Serial 0, remember disconect Tx (pin0) when upload sketch, then re-conect
+// Update these with values suitable for your network.
+
+const char* ssid = "........";
+const char* password = "........";
+const char* mqtt_server = "broker.mqtt-dashboard.com";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+uint8_t msg[50];
+
+#define MB_SERIAL_PORT &Serial   // ESP8266 has two serial ports, but Serial1 only Tx
+// Serial.swap() change pins to Tx and Rx
+
 #define MB_BAUDRATE       2400          // b 2400
 #define MB_BYTEFORMAT     SERIAL_8N2    // Prty n
 #define TxEnablePin       2
@@ -40,9 +52,15 @@ modbusSensor pwr(ID_1, POWER, CHANGE_TO_ZERO, sizeof(three_phase));
 modbusSensor enrg(ID_1, IAENERGY, HOLD_VALUE);
 
 void setup() {
+  pinMode(BUILTIN_LED, OUTPUT);
+  setup_wifi();
+  client.setServer(mqtt:server,1883);
+  client.setCallback(callback);
+  
   Serial.begin(9600);
   MBSerial.config(MB_SERIAL_PORT, TxEnablePin, REFRESH_INTERVAL);
   MBSerial.begin(MB_BAUDRATE, MB_BYTEFORMAT);
+  
   delay(95);
   Serial.println("time(s),Volt1(V), Volt2(V), Volt3(V), Curr1(A) Curr2(A), Curr3(A), Power1(W), Power2(W), Power3(W), Energy(Kwh)");
 }
@@ -79,4 +97,22 @@ void loop() {
   }
 }
 
+void setup_wifi() {
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());    
+}
 

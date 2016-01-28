@@ -80,11 +80,11 @@ class modbusMaster {
     //constructor
     void config(HardwareSerial *mbSerial, uint8_t TxEnPin);
 
-    // Connect a modbusSensor to modbusMaster array of queries
-    void connect(modbusSensor *mbSensor);
+    // attach a modbusSensor to modbusMaster array of queries
+    void attach(modbusSensor *mbSensor);
 
-    // Disconnect a modbusSensor to modbusMaster array of queries
-    void disconnect(modbusSensor *mbSensor);
+    // detach a modbusSensor to modbusMaster array of queries
+    void detach(modbusSensor *mbSensor);
 
     // begin communication using ModBus protocol over RS485
     void begin(uint16_t baudrate, uint8_t byteFormat);
@@ -134,17 +134,17 @@ class modbusSensor {
     ~modbusSensor() {
       delete[] _value;
       delete[] _frame;
-      MBSerial.disconnect(this);
+      MBSerial.detach(this);
     }
 
-    // Connect to MBSerial array of sensors
-    void connect() {
-      MBSerial.connect(this);
+    // attach to MBSerial array of sensors
+    void attach() {
+      MBSerial.attach(this);
     };
 
-    // Disconnect to MBSerial array of sensors
-    void disconnect() {
-      MBSerial.disconnect(this);
+    // detach to MBSerial array of sensors
+    void detach() {
+      MBSerial.detach(this);
     };
 
     // Preset sensor value, fc 0x10, only holding registers defined with fc 0x03

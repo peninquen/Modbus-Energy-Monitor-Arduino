@@ -78,13 +78,13 @@ void modbusMaster::config(HardwareSerial * hwSerial, uint8_t TxEnPin) {
   _TxEnablePin = TxEnPin;
   pinMode(_TxEnablePin, OUTPUT);
   _state = STOP;
-  MODBUS_SERIAL_PRINT(_totalSensors); MODBUS_SERIAL_PRINTLN(" total sensors connected at config");
+  MODBUS_SERIAL_PRINT(_totalSensors); MODBUS_SERIAL_PRINTLN(" total sensors attached at config");
 }
 
 
 //------------------------------------------------------------------------------
-// Connect a modbusSensor to the modbusMaster array of queries
-void modbusMaster::connect(modbusSensor * mbSensor) {
+// attach a modbusSensor to the modbusMaster array of queries
+void modbusMaster::attach(modbusSensor * mbSensor) {
   if (_totalSensors < MAX_SENSORS) {
     _mbSensorsPtr[_totalSensors] = mbSensor;
     _totalSensors++;
@@ -93,12 +93,12 @@ void modbusMaster::connect(modbusSensor * mbSensor) {
 }
 
 //------------------------------------------------------------------------------
-// Disconnect a modbusSensor to the modbusMaster array of queries
-void modbusMaster::disconnect(modbusSensor * mbSensor) {
+// detach a modbusSensor to the modbusMaster array of queries
+void modbusMaster::detach(modbusSensor * mbSensor) {
   uint8_t i = 0;
   while (i < _totalSensors) {
     if (_mbSensorsPtr[i] == mbSensor)  {
-      MODBUS_SERIAL_PRINT(i); MODBUS_SERIAL_PRINTLN("  sensor disconnected");
+      MODBUS_SERIAL_PRINT(i); MODBUS_SERIAL_PRINTLN("  sensor detached");
       while (i < _totalSensors - 1) {
         _mbSensorsPtr[i] = _mbSensorsPtr[i + 1]; //shift down pointers one position
       }
@@ -303,7 +303,7 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeo
       _frame[1] = READ_INPUT_REGISTERS;
       break;
     default:
-      // exit without connect to MBSerial
+      // exit without attach to MBSerial
       _frame = 0;
       _frameSize = 0;
       _status = MB_INVALID_FC;
@@ -324,7 +324,7 @@ modbusSensor::modbusSensor(uint8_t id, uint16_t adr, uint8_t hold, uint8_t sizeo
   _status = MB_MASTER_STOP;
   _hold = hold;
 
-  MBSerial.connect(this);
+  MBSerial.attach(this);
 }
 
 //------------------------------------------------------------------------------
