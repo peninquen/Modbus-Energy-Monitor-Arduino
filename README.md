@@ -28,7 +28,7 @@ Objetivos alcanzados:
 - Petición periódica de datos. Se repite la lista de peticiones para registrar los datos.
 - Comportamiento sin bloqueo ni uso de 'delays', que permite ejecutar varios procesos conjuntos sin sufrir retrasos.
 - Escalable. Los modelos de EASTRON trabajan con valores tipo 'float'. el objeto 'modbusSensor' puede hacer peticiones de un solo valor o varios valores contiguos, además de permitir al usuario crear estructuras de datos que almacene los registros del esclavo.
-- Configurable. Dispone de las funciones y ejemplo de sketch de configuración de los parametros de un Eastron SDM.
+- Configurable. Dispone de las funciones y ejemplo de sketch de configuración de los parámetros de un Eastron SDM.
 - Gestión de errores. Ajusta la respuesta en caso de no responder por apagón. Otros errores configurables por el usuario.
 
 Siguientes objetivos:
@@ -38,7 +38,7 @@ Siguientes objetivos:
 - Crear el objeto 'modbusSlave' y sus métodos, de forma que un arduino pueda operar como esclavo sobre Modbus RTU
 - Documentar las funciones y los sketchs de ejemplo.
 
-Cualquier comentario, incidencia o sugerencia será  bien recibida para mejorar la librería.  
+Cualquier comentario, incidencia o sugerencia será bien recibida para mejorar la librería.  
 
 * Author: Jaime García  @peninquen
 * License: Apache License Version 2.0.
