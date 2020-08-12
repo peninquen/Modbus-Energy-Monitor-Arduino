@@ -1,6 +1,6 @@
-#MANUAL DE USUARIO
+# MANUAL DE USUARIO
 
-##**Alcance de la librería**
+## **Alcance de la librería**
 
 Permitir la comunicación de un Arduino o ESP8266 en modo máster con dispositivos esclavos empleando un canal RS485 half-duplex.
 Los esclavos son del tipo monitores de energía, en particular EASTRON modelos SDM120, SDM220, SDM320, SDM530M Y SDM630.
@@ -11,11 +11,11 @@ Las funciones implementadas son:
  - 0x04 READ INPUT REGISTERS
  - 0x10 PRESET MULTIPLES REGISTERS
 
-##**Conexiones.**
+## **Conexiones.**
 
 (incluir esquema con MAX485 y MAX3485)
 
-##Limitaciones.
+## Limitaciones.
 - Las propias del MAX485, máximo 32 dispositivos esclavos.
 - Se utiliza en exclusiva un puerto serie. El MEGA dispone de tres puertos serie. 
 El UNO, Leonardo, etc, dispone de un único puerto serie conectado al puerto USB, por lo que no se pueden emplear simultáneamente. 
@@ -25,16 +25,16 @@ No se ha realizado la adaptación a SoftwareSerial, pero parece factible.
 
 No se ha implementado las funciones de lectura y escritura de 'coils'
 
-##Archivos de la librería
+## Archivos de la librería
 
 La librería ModbusSensor se compone de los siguientes archivos:
 - ``ModbusSensor.h`` archivo de cabecera con las definiciones de las clases,
 - ``ModbusSensor.cpp`` archivo de métodos y rutinas,
 - ``SDMdefines.h`` archivo de definiciones de los parámetros de los diferentes equipos modbus implementados. para los medidores de energía de la marca EASTRON, modelos SDM120, SDM220, SDM320, SDM530M Y SDM630.
 
-##Objetos y métodos
+## Objetos y métodos
 
-###modbusMaster
+### modbusMaster
 
 La clase ``modbusmaster`` tiene una única instancia, llamada ``MBSerial``. Se encarga de gestionar el canal serie al que está conectado un chip tipo MAX485.
 Se distingue de otros gestores de canal serie por incluir la gestión de listas de objetos *modbusSensor*, 
@@ -75,7 +75,7 @@ En caso de un proceso secuencial, en el que se requiera bloquear el proceso hast
   Serial.println(id.read(), 0);
 ```
 
-###*modbusSensor*
+### *modbusSensor*
 
 El objeto ``modbusSensor`` está pensado para contener un valor o grupo de valores de un dispositivo esclavo modbus. 
 Dentro de cada instancia modbusSensor el valor o valores se almacena como una secuencia de bytes que refleja el contenido de los registros del esclavo, además del *frame* de petición.
@@ -83,7 +83,7 @@ Dentro de cada instancia modbusSensor el valor o valores se almacena como una se
 Los dispositivos Eastron SDM almacenan los datos como valores ``float`` según IEEE 754, ocupan 4 bytes en 2 registros consecutivos. 
 Otros valores están como valores BCD o hexadecimal. En todos ellos el orden de los bytes (*endianess*) es inverso al del Arduino. 
 Por este motivo la transferencia de bytes se realiza en orden inverso. En caso de implementar un dispositivo con el mismo orden de bytes,
-el usuario debera implementar su propia gestión de bytes para re-inverir el orden.
+el usuario debera implementar su propia gestión de bytes para re-invertir el orden.
 
 **Métodos:**
 
